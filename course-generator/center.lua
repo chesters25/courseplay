@@ -547,7 +547,7 @@ function addPathOnHeadlandToNextRow(result, fromRow, toRow, headlands, islands, 
 			table.insert(allHeadlands, islandHeadland)
 		end
 	end
-	local pathToNextRow, _ = pathFinder.findPathOnHeadland(fromRow[#fromRow], toRow[1], allHeadlands, workWidth, true)
+	local pathToNextRow, _ = courseGenerator.headlandPathFinder:findPath(fromRow[#fromRow], toRow[1], allHeadlands, workWidth, true)
 	if not pathToNextRow then
 		-- should not happen, safety harness only
 		table.insert(result, fromRow[#fromRow])
