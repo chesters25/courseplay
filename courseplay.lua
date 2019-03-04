@@ -115,7 +115,7 @@ local function initialize()
     'course-generator/headland',
     'course-generator/geo',
     'course-generator/Island',
-    'course-generator/pathfinder'
+    'course-generator/PathFinder'
 	};
 
 	local numFiles, numFilesLoaded = #(fileList) + 3, 3; -- + 3 as 'register.lua', 'courseplay.lua' and 'CpManager.lua' have already been loaded

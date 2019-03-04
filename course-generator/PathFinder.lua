@@ -1,6 +1,6 @@
 --[[
 This file is part of Courseplay (https://github.com/Courseplay/courseplay)
-Copyright (C) 2018 Peter Vajko
+Copyright (C) 2019 Peter Vaiko
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -77,7 +77,8 @@ function PathFinder:unwindPath ( flat_path, map, current_node )
 	end
 end
 
-function PathFinder:path ( start, goal, nodes, max_iterations )
+-- The A start adapted from https://github.com/lattejed/a-star-lua
+function PathFinder:path (start, goal, nodes, max_iterations)
 
 	local closedset = {}
 	local openset = { start }
@@ -316,8 +317,7 @@ function PathFinder:getNeighbors( theNode, grid )
 end
 
 
---- g() score to neighbor, A star will call back here when calculating the score
---
+--- g() score to neighbor, considering the fruit on the field
 function PathFinder:gScoreToNeighbor( node, neighbor )
 	if self:hasFruit( neighbor, self.gridSpacing * 2 ) then
 		-- this is the key parameter to tweak. This is basically the distance you are
@@ -358,10 +358,19 @@ function PathFinder:addOffGridNode( grid, newNode )
 end
 
 
---- Find a path between from and to in a polygon using the A star
--- algorithm
--- expects x/y coordinates
-function PathFinder:run( fromNode, toNode, polygon, fruit, customHasFruitFunc, addFruit, iterationsPerLoop )
+-- Run the A star algorithm. Do not use this directly, call either through findPath()
+-- or start()
+--
+-- Find a path on a field between two nodes, avoiding fruit on the field.
+--
+-- @param fromNode starting node {x, y} of the path
+-- @param toNode destination node
+---@param polygon : Polygon polygon representing the field boundary
+-- @param fruit the fruit to avoid, all fruit will be avoided if nil
+-- @param customHasFruitFunc function(node, width) custom function to tell if an area
+-- width wide around node has a function. If nil, courseplay:areaHasFruit() will be used
+-- @param addFruit if true, will add fruit to the field. Only for test purposes
+function PathFinder:run(fromNode, toNode, polygon, fruit, customHasFruitFunc, addFruit)
 	self.count = 0
 	self.yields = 0
 	self.fruitToCheck = fruit
@@ -393,10 +402,26 @@ function PathFinder:run( fromNode, toNode, polygon, fruit, customHasFruitFunc, a
 	return true, path, grid
 end
 
+--- Find path, do not return until finished.
+---@see PathFinder#run and
+---@see HeadlandPathFinder#run for the arguments
+---@return path : Polyline the path found or nil if none found.
+-- @return array of the points of the grid used for the pathfinding, for test purposes only
 function PathFinder:findPath(...)
-	self:run(...)
+	self:start(...)
+	local done, path, grid
+	while self:isActive() do
+		done, path, grid = self:resume(...)
+	end
+	return path, grid
 end
 
+--- Start a pathfinding. This is the interface to use if you want to run the pathfinding algorithm through
+-- multiple update loops so it does not block the game. This starts a coroutine and will periodically return control
+-- (yield).
+--
+-- After start(), call resume() until it returns done == true.
+---@see PathFinder#findPath also on how to use.
 function PathFinder:start(...)
 	if not self.finder then
 		self.finder = coroutine.create(self.run)
@@ -404,19 +429,26 @@ function PathFinder:start(...)
 	return self:resume(...)
 end
 
+--- Is a pathfinding currently active?
+-- @return true if the pathfinding has started and not yet finished
 function PathFinder:isActive()
 	return self.finder ~= nil
 end
 
+--- Resume the pathfinding
+-- @return true if the pathfinding is done, false if it isn't ready. In this case you'll have to call resume() again
+---@return path : Polyline the path found or nil if none found.
+-- @return array of the points of the grid used for the pathfinding, for test purposes only
 function PathFinder:resume(...)
 	local ok, done, path, grid = coroutine.resume(self.finder, self, ...)
 	if not ok or done then
 		self.finder = nil
-		return false, path, grid
+		return true, path, grid
 	end
-	return true
+	return false
 end
 
+--- Find path on a headland, using only the headland nodes
 ---@class HeadlandPathFinder : PathFinder
 HeadlandPathFinder = CpObject(PathFinder)
 
@@ -431,14 +463,20 @@ function HeadlandPathFinder:getNeighbors( theNode, nodes )
 	return neighbors
 end
 
--- g score does not need to take the fruit into account
+-- g() score on the headland does not consider fruit, just plain distance based
 function HeadlandPathFinder:gScoreToNeighbor(a, b)
 	return self:distance( a.x, a.y, b.x, b.y )
 end
 
---- Find path on the headland. This one currently ignores the fruit.
--- @param headlands - array of polygons containing the headland waypoints
--- #param dontUseInnermostHeadland - if true, won't use the innermost headland
+--
+--- Find path between two points on the headland. This one currently ignores the fruit.
+-- Do not use this directly, call either through PathFinder:findPath() or PathFinder:start()
+--
+-- @param fromNode starting node {x, y} of the path
+-- @param toNode destination node
+---@param headlands : Polygon[] - array of polygons containing the headland waypoints
+-- @param workWidth work width of the headlands
+-- @param dontUseInnermostHeadland - if true, won't use the innermost headland
 function HeadlandPathFinder:findPath(fromNode, toNode, headlands, workWidth, dontUseInnermostHeadland)
 	-- list of nodes for pathfinding are all the waypoints on the headland
 	local nodes = {}
