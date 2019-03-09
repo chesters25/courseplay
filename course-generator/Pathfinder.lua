@@ -16,12 +16,12 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 ]]
 
----@class PathFinder
-PathFinder = CpObject()
+---@class Pathfinder
+Pathfinder = CpObject()
 --- Generate nodes for the A* algorithm. The nodes
 -- cover the polygon and are arranged in a grid.
 --
-function PathFinder:init()
+function Pathfinder:init()
 	self.gridSpacing = 4
 	self.count = 0
 	self.yields = 0
@@ -30,15 +30,15 @@ function PathFinder:init()
 	self.customHasFruitFunc = nil
 end
 
-function PathFinder:distance ( x1, y1, x2, y2 )
+function Pathfinder:distance ( x1, y1, x2, y2 )
 	return math.sqrt ( math.pow ( x2 - x1, 2 ) + math.pow ( y2 - y1, 2 ) )
 end
 
-function PathFinder:heuristicCostEstimate ( nodeA, nodeB )
+function Pathfinder:heuristicCostEstimate ( nodeA, nodeB )
 	return self:distance ( nodeA.x, nodeA.y, nodeB.x, nodeB.y )
 end
 
-function PathFinder:lowestFScore ( set, f_score )
+function Pathfinder:lowestFScore ( set, f_score )
 	local INF = 1/0
 	local lowest, bestNode = INF, nil
 	for _, node in ipairs ( set ) do
@@ -51,14 +51,14 @@ function PathFinder:lowestFScore ( set, f_score )
 end
 
 
-function PathFinder:notIn( set, theNode )
+function Pathfinder:notIn( set, theNode )
 	for _, node in ipairs ( set ) do
 		if node == theNode then return false end
 	end
 	return true
 end
 
-function PathFinder:removeNode ( set, theNode )
+function Pathfinder:removeNode ( set, theNode )
 	for i, node in ipairs ( set ) do
 		if node == theNode then
 			set [ i ] = set [ #set ]
@@ -68,7 +68,7 @@ function PathFinder:removeNode ( set, theNode )
 	end
 end
 
-function PathFinder:unwindPath ( flat_path, map, current_node )
+function Pathfinder:unwindPath ( flat_path, map, current_node )
 	if map [ current_node ] then
 		table.insert ( flat_path, 1, map [ current_node ] )
 		return self:unwindPath( flat_path, map, map [ current_node ] )
@@ -78,7 +78,7 @@ function PathFinder:unwindPath ( flat_path, map, current_node )
 end
 
 -- The A start adapted from https://github.com/lattejed/a-star-lua
-function PathFinder:path (start, goal, nodes, max_iterations)
+function Pathfinder:path (start, goal, nodes, max_iterations)
 
 	local closedset = {}
 	local openset = { start }
@@ -125,7 +125,7 @@ end
 
 --
 --- add some area with fruit for tests
-function PathFinder:addFruitDistanceFromBoundary( grid, polygon )
+function Pathfinder:addFruitDistanceFromBoundary( grid, polygon )
 	local distance = 10
 	for y, row in ipairs( grid.map ) do
 		for x, index in pairs( row ) do
@@ -140,7 +140,7 @@ function PathFinder:addFruitDistanceFromBoundary( grid, polygon )
 	end
 end
 
-function PathFinder:addFruitGridDistanceFromBoundary( grid, polygon )
+function Pathfinder:addFruitGridDistanceFromBoundary( grid, polygon )
 	local distance = 1
 	for y, row in ipairs( grid.map ) do
 		for x, index in pairs( row ) do
@@ -151,7 +151,7 @@ function PathFinder:addFruitGridDistanceFromBoundary( grid, polygon )
 	end
 end
 
-function PathFinder:addIsland( grid, polygon )
+function Pathfinder:addIsland( grid, polygon )
 	local distance = 64
 	for y, row in ipairs( grid.map ) do
 		for x, index in pairs( row ) do
@@ -165,7 +165,7 @@ end
 
 --- Is this node an island (like a tree in the middle of the field)?
 --
-function PathFinder:isOnField( node )
+function Pathfinder:isOnField( node )
 	if courseGenerator.isRunningInGame() then
 		if node.isOnField == nil then
 			node.isOnField = courseplay:isField(node.x, - node.y)
@@ -178,7 +178,7 @@ end
 
 --- Does the area around x, z has fruit?
 --
-function PathFinder:hasFruit(node, width)
+function Pathfinder:hasFruit(node, width)
 	if self.customHasFruitFunc then
 		return self.customHasFruitFunc(node, width)
 	end
@@ -191,7 +191,7 @@ function PathFinder:hasFruit(node, width)
 	return node.hasFruit
 end
 
-function PathFinder:generateGridForPolygon( polygon, gridSpacingHint )
+function Pathfinder:generateGridForPolygon( polygon, gridSpacingHint )
 	local grid = {}
 	-- map[ row ][ column ] maps the row/column address of the grid to a linear
 	-- array index in the grid.
@@ -234,7 +234,7 @@ function PathFinder:generateGridForPolygon( polygon, gridSpacingHint )
 	return grid, self.gridSpacing
 end
 
-function PathFinder:findIslands( polygon )
+function Pathfinder:findIslands( polygon )
 	local grid, _ = self:generateGridForPolygon( polygon, Island.self.gridSpacing )
 	local islandNodes = {}
 	for _, row in ipairs( grid.map ) do
@@ -256,7 +256,7 @@ function PathFinder:findIslands( polygon )
 end
 --- Is 'node' a valid neighbor of 'theNode'?
 --
-function PathFinder:isValidNeighbor( theNode, node )
+function Pathfinder:isValidNeighbor( theNode, node )
 	-- this is called by a_star so we are in the x/y system
 	--courseplay:debug( string.format( "theNode: %.2f, %2.f", theNode.x, theNode.y))
 	--courseplay:debug( string.format( "node: %.2f, %.2f", node.x, node.y ))
@@ -274,7 +274,7 @@ end
 -- of the grid and see if theNode is close enough. We don't need that as we have our nodes in
 -- a grid and we know exactly which (up to) eight nodes are the neighbors.
 -- This reduces the iterations by two magnitudes
-function PathFinder:getNeighbors( theNode, grid )
+function Pathfinder:getNeighbors( theNode, grid )
 	local neighbors = {}
 	self.count = self.count + 1
 	if self.finder and self.count % 100 == 0 then
@@ -318,7 +318,7 @@ end
 
 
 --- g() score to neighbor, considering the fruit on the field
-function PathFinder:gScoreToNeighbor( node, neighbor )
+function Pathfinder:gScoreToNeighbor( node, neighbor )
 	if self:hasFruit( neighbor, self.gridSpacing * 2 ) then
 		-- this is the key parameter to tweak. This is basically the distance you are
 		-- willing to travel in order not to cross one grid spacing of fruit. So, for
@@ -336,7 +336,7 @@ end
 
 --- Add a non-grid node to the grid
 -- the purpose of this is to set up the neighbors
-function PathFinder:addOffGridNode( grid, newNode )
+function Pathfinder:addOffGridNode( grid, newNode )
 	for column, node in ipairs ( grid ) do
 		if newNode ~= node and self:isValidNeighbor( newNode, node ) then
 			if newNode.neighborIndexes then
@@ -370,7 +370,7 @@ end
 -- @param customHasFruitFunc function(node, width) custom function to tell if an area
 -- width wide around node has a function. If nil, courseplay:areaHasFruit() will be used
 -- @param addFruit if true, will add fruit to the field. Only for test purposes
-function PathFinder:run(fromNode, toNode, polygon, fruit, customHasFruitFunc, addFruit)
+function Pathfinder:run(fromNode, toNode, polygon, fruit, customHasFruitFunc, addFruit)
 	self.count = 0
 	self.yields = 0
 	self.fruitToCheck = fruit
@@ -403,11 +403,11 @@ function PathFinder:run(fromNode, toNode, polygon, fruit, customHasFruitFunc, ad
 end
 
 --- Find path, do not return until finished.
----@see PathFinder#run and
----@see HeadlandPathFinder#run for the arguments
+---@see Pathfinder#run and
+---@see HeadlandPathfinder#run for the arguments
 ---@return path : Polyline the path found or nil if none found.
 -- @return array of the points of the grid used for the pathfinding, for test purposes only
-function PathFinder:findPath(...)
+function Pathfinder:findPath(...)
 	self:start(...)
 	local done, path, grid
 	while self:isActive() do
@@ -421,8 +421,8 @@ end
 -- (yield).
 --
 -- After start(), call resume() until it returns done == true.
----@see PathFinder#findPath also on how to use.
-function PathFinder:start(...)
+---@see Pathfinder#findPath also on how to use.
+function Pathfinder:start(...)
 	if not self.finder then
 		self.finder = coroutine.create(self.run)
 	end
@@ -431,7 +431,7 @@ end
 
 --- Is a pathfinding currently active?
 -- @return true if the pathfinding has started and not yet finished
-function PathFinder:isActive()
+function Pathfinder:isActive()
 	return self.finder ~= nil
 end
 
@@ -439,7 +439,7 @@ end
 -- @return true if the pathfinding is done, false if it isn't ready. In this case you'll have to call resume() again
 ---@return path : Polyline the path found or nil if none found.
 -- @return array of the points of the grid used for the pathfinding, for test purposes only
-function PathFinder:resume(...)
+function Pathfinder:resume(...)
 	local ok, done, path, grid = coroutine.resume(self.finder, self, ...)
 	if not ok or done then
 		self.finder = nil
@@ -449,11 +449,11 @@ function PathFinder:resume(...)
 end
 
 --- Find path on a headland, using only the headland nodes
----@class HeadlandPathFinder : PathFinder
-HeadlandPathFinder = CpObject(PathFinder)
+---@class HeadlandPathfinder : Pathfinder
+HeadlandPathfinder = CpObject(Pathfinder)
 
 --- Default neighbor finder function, considering all nodes
-function HeadlandPathFinder:getNeighbors( theNode, nodes )
+function HeadlandPathfinder:getNeighbors( theNode, nodes )
 	local neighbors = {}
 	for _, node in ipairs ( nodes ) do
 		if theNode ~= node and self:isValidNeighbor ( theNode, node ) then
@@ -464,20 +464,20 @@ function HeadlandPathFinder:getNeighbors( theNode, nodes )
 end
 
 -- g() score on the headland does not consider fruit, just plain distance based
-function HeadlandPathFinder:gScoreToNeighbor(a, b)
+function HeadlandPathfinder:gScoreToNeighbor(a, b)
 	return self:distance( a.x, a.y, b.x, b.y )
 end
 
 --
 --- Find path between two points on the headland. This one currently ignores the fruit.
--- Do not use this directly, call either through PathFinder:findPath() or PathFinder:start()
+-- Do not use this directly, call either through Pathfinder:findPath() or Pathfinder:start()
 --
 -- @param fromNode starting node {x, y} of the path
 -- @param toNode destination node
 ---@param headlands : Polygon[] - array of polygons containing the headland waypoints
 -- @param workWidth work width of the headlands
 -- @param dontUseInnermostHeadland - if true, won't use the innermost headland
-function HeadlandPathFinder:findPath(fromNode, toNode, headlands, workWidth, dontUseInnermostHeadland)
+function HeadlandPathfinder:findPath(fromNode, toNode, headlands, workWidth, dontUseInnermostHeadland)
 	-- list of nodes for pathfinding are all the waypoints on the headland
 	local nodes = {}
 	local nHeadlandsToUse = math.max(1, dontUseInnermostHeadland and #headlands - 1 or #headlands)

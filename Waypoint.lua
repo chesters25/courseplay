@@ -566,3 +566,27 @@ function Course:getNextFwdWaypointIxfromVehiclePosition(ix,vehicle,lookAheadDist
 	return ix
 end
 
+--- Cut waypoints from the end of the course until we shortened it by at least d
+-- @param d length in meters to shorten course
+-- @return true if shortened
+function Course:shorten(d)
+	local dCut = 0
+	for i = #self.waypoints - 1, 1, -1 do
+		dCut = dCut + self.waypoints[i].dToNext
+		if dCut > d then
+			self:enrichWaypointData()
+			return true
+		end
+		self.wayponts[i] = nil
+	end
+	self:enrichWaypointData()
+	return false
+end
+
+--- Append waypoints to the course
+function Course:append(waypoints)
+	for i =1, #waypoints do
+		table.insert(self.waypoints, Waypoint(waypoints[i], #self.waypoints + 1))
+	end
+	self:enrichWaypointData()
+end

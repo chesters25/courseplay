@@ -150,6 +150,7 @@ function AIDriver:init(vehicle)
 	self.collisionDetector = CollisionDetector(self.vehicle)
 	-- list of active messages to display
 	self.activeMsgReferences = {}
+	self.pathfinder = Pathfinder()
 end
 
 -- destructor. The reason for having this is the collisionDetector which creates nodes and
@@ -175,11 +176,6 @@ end
 
 function AIDriver:getMode()
 	return self.mode
-end
-
--- TODO: remove this once mode 2 is cleaned up!
-function AIDriver:getCpMode()
-	return self.vehicle.cp.mode
 end
 
 --- If you have your own start() implementation and you do not call AIDriver.start() then
@@ -312,6 +308,8 @@ function AIDriver:driveCourse(dt)
 	if self.course:hasWaitPointAround(self.ppc:getCurrentOriginalWaypointIx(), 1, 2) then
 		self:setSpeed(self.vehicle.cp.speeds.turn)
 	end
+
+	self:updatePathfinding()
 
 	if isReverseActive then
 		-- we go wherever goReverse() told us to go
@@ -994,5 +992,80 @@ function AIDriver:updateOffset()
 		self.ppc:setOffset(self.vehicle.cp.loadUnloadOffsetX, self.vehicle.cp.loadUnloadOffsetZ)
 	else
 		self.ppc:setOffset(0, 0)
+	end
+end
+
+------------------------------------------------------------------------------
+--- PATHFINDING
+------------------------------------------------------------------------------
+
+--- Start course (with pathfinding if needed) and set course as the current one
+--- Will find a path on a field avoiding fruit as far as possible from the
+--- current position to the start of course.
+---@param course Course
+---@param ix number
+---@param fieldBoundary : Polygon  field boundary polygon we want to stay while driving
+---@return boolean true when an alignment course was added
+function AIDriver:startCourseWithPathfinding(course, ix, fieldBoundary)
+	self.turnIsDriving = false
+	if self.vehicle.cp.realisticDriving then
+		local vx, _, vz = getWorldTranslation(self.vehicle.cp.DirectionNode or self.vehicle.rootNode)
+		local tx, _, tz = course:getWaypointPosition(ix)
+		if not self.pathfinder:isActive() then
+			self:debug('Start pathfinding')
+			self.waypointIxAfterPathfinding = ix
+			self.courseAfterPathfinding = course
+			-- TODO: move this coordinate transformation into the pathfinder, it is internal
+			local done, path = self.pathfinder:start({x = vx, y = -vz}, {x = tx, y = -tz}, Polygon:new( courseGenerator.pointsToXy(fieldBoundary)))
+			if done then
+				self:onPathfindingDone(path)
+			end
+		else
+			self:debug('Pathfinder already active')
+		end
+	else
+		self:debug('Pathfinding turned off, falling back to alignment course')
+		self:startCourseWithAlignment(course, ix)
+	end
+
+end
+
+function AIDriver:updatePathfinding()
+	if self.pathfinder:isActive() then
+		-- stop while pethfinding is running
+		self:setSpeed(0)
+		local done, path = self.pathfinder:resume()
+		if done then
+			self:onPathfindingDone(path)
+		end
+	end
+end
+
+--- If we have a path now then set it up as a temporary course, also appending an alignment between the end
+--- of the path and the target course
+function AIDriver:onPathfindingDone(path)
+	if path and #path > 0 then
+		self:debug('Pathfinding finished with %d waypoints', #path)
+		local temporaryCourse = Course(courseplay.pointsToXz(path))
+		-- first remove a few waypoints from the path so we have room for the alignment course
+		if (temporaryCourse:shorten(self.vehicle.cp.turnDiameter * 1.5)) then
+			-- append an alignment course at the end of the path to the target waypoint
+			local x, _, z = temporaryCourse:getWaypointPosition(temporaryCourse:getNumberOfWaypoints())
+			local tx, _, tz = self.courseAfterPathfinding:getWaypointPosition(self.waypointIxAfterPathfinding)
+			local alignmentWaypoints = courseplay:getAlignWpsToTargetWaypoint(x, z, tx, tz,
+				math.rad(self.courseAfterPathfinding:getWaypointAngleDeg(self.waypointIxAfterPathfinding)), true)
+			if alignmentWaypoints then
+				self:debug('Append an alignment course with %d waypoints to the path', #alignmentWaypoints)
+				temporaryCourse:append(alignmentWaypoints)
+			else
+				self:debug('Could not append an alignment course to the path')
+			end
+		else
+			self:debug('Could not make room for alignment course')
+		end
+		self:startTemporaryCourse(temporaryCourse, self.courseAfterPathfinding, self.waypointIxAfterPathfinding)
+	else
+		self:debug('Pathfinding finished, no path found, reverting to alignment course')
+		self:startCourseWithAlignment(self.courseAfterPathfinding, self.waypointIxAfterPathfinding)
 	end
 end
