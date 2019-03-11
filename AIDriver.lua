@@ -581,8 +581,8 @@ end
 ---@param course Course
 function AIDriver:setUpAlignmentCourse(course, ix)
 	local x, _, z = course:getWaypointPosition(ix)
-	-- to work with individual course waypoints here.
-	local alignmentWaypoints = courseplay:getAlignWpsToTargetWaypoint(self.vehicle, x, z, math.rad( course:getWaypointAngleDeg(ix)), true)
+	local vx, _, vz = getWorldTranslation(self.vehicle.cp.DirectionNode or self.vehicle.rootNode)
+	local alignmentWaypoints = courseplay:getAlignWpsToTargetWaypoint(self.vehicle, vx, vz, x, z, math.rad( course:getWaypointAngleDeg(ix)), true)
 	if not alignmentWaypoints then
 		self:debug("Can't find an alignment course, may be too close to target wp?" )
 		return nil
@@ -1004,35 +1004,53 @@ end
 --- current position to the start of course.
 ---@param course Course
 ---@param ix number
----@param fieldBoundary : Polygon  field boundary polygon we want to stay while driving
+-- @param vehicleIsOnField use the vehicle's position to determine for which field
+-- we need a path. If false, we assume that the course's waypoint at ix is on the field.
 ---@return boolean true when an alignment course was added
-function AIDriver:startCourseWithPathfinding(course, ix, fieldBoundary)
+function AIDriver:startCourseWithPathfinding(course, ix, vehicleIsOnField)
 	self.turnIsDriving = false
 	if self.vehicle.cp.realisticDriving then
-		local vx, _, vz = getWorldTranslation(self.vehicle.cp.DirectionNode or self.vehicle.rootNode)
+		local vx, _, vz = getWorldTranslation(self.vehicle.rootNode)
 		local tx, _, tz = course:getWaypointPosition(ix)
-		if not self.pathfinder:isActive() then
-			self:debug('Start pathfinding')
-			self.waypointIxAfterPathfinding = ix
-			self.courseAfterPathfinding = course
-			-- TODO: move this coordinate transformation into the pathfinder, it is internal
-			local done, path = self.pathfinder:start({x = vx, y = -vz}, {x = tx, y = -tz}, Polygon:new( courseGenerator.pointsToXy(fieldBoundary)))
-			if done then
-				self:onPathfindingDone(path)
+
+		local fieldNum
+		if vehicleIsOnField then
+			-- vehicle is on field, target waypoint may be out of field
+			fieldNum = courseplay.fields:getFieldNumForPosition(vx, vz)
+			tx, tz = self:getClosestPointOnFieldBoundary(tx, tz, fieldNum)
+		else
+			-- target waypoint is on field, vehicle may be off field
+			fieldNum = courseplay.fields:getFieldNumForPosition(tx, tz)
+			vx, vz = self:getClosestPointOnFieldBoundary(vx, vz, fieldNum)
+		end
+		if fieldNum > 0 then
+			if not self.pathfinder:isActive() then
+				self:debug('Start pathfinding on field %d', fieldNum)
+				self.waypointIxAfterPathfinding = ix
+				self.courseAfterPathfinding = course
+				self.pathFindingStartedAt = self.vehicle.timer
+				-- TODO: move this coordinate transformation into the pathfinder, it is internal
+				local done, path = self.pathfinder:start({x = vx, y = -vz}, {x = tx, y = -tz},
+					Polygon:new(courseGenerator.pointsToXy(courseplay.fields.fieldData[fieldNum].points)))
+				if done then
+					self:onPathfindingDone(path)
+				end
+			else
+				self:debug('Pathfinder already active')
 			end
 		else
-			self:debug('Pathfinder already active')
+			self:debug('Do not know which field I am on, falling back to alignment course')
 		end
+		return true
 	else
 		self:debug('Pathfinding turned off, falling back to alignment course')
-		self:startCourseWithAlignment(course, ix)
+		return self:startCourseWithAlignment(course, ix)
 	end
-
 end
 
 function AIDriver:updatePathfinding()
 	if self.pathfinder:isActive() then
-		-- stop while pethfinding is running
+		-- stop while pathfinding is running
 		self:setSpeed(0)
 		local done, path = self.pathfinder:resume()
 		if done then
@@ -1045,14 +1063,15 @@ end
 --- of the path and the target course
 function AIDriver:onPathfindingDone(path)
 	if path and #path > 0 then
-		self:debug('Pathfinding finished with %d waypoints', #path)
-		local temporaryCourse = Course(courseplay.pointsToXz(path))
+		self:debug('Pathfinding finished with %d waypoints (%d ms)', #path, self.vehicle.timer - (self.pathFindingStartedAt or 0))
+		local temporaryCourse = Course(self.vehicle, courseGenerator.pointsToXz(path))
 		-- first remove a few waypoints from the path so we have room for the alignment course
 		if (temporaryCourse:shorten(self.vehicle.cp.turnDiameter * 1.5)) then
+			self:debug('Path shortened to accommodate alignment, has now %d waypoints', temporaryCourse:getNumberOfWaypoints())
 			-- append an alignment course at the end of the path to the target waypoint
 			local x, _, z = temporaryCourse:getWaypointPosition(temporaryCourse:getNumberOfWaypoints())
 			local tx, _, tz = self.courseAfterPathfinding:getWaypointPosition(self.waypointIxAfterPathfinding)
-			local alignmentWaypoints = courseplay:getAlignWpsToTargetWaypoint(x, z, tx, tz,
+			local alignmentWaypoints = courseplay:getAlignWpsToTargetWaypoint(self.vehicle, x, z, tx, tz,
 				math.rad(self.courseAfterPathfinding:getWaypointAngleDeg(self.waypointIxAfterPathfinding)), true)
 			if alignmentWaypoints then
 				self:debug('Append an alignment course with %d waypoints to the path', #alignmentWaypoints)
@@ -1069,3 +1088,17 @@ function AIDriver:onPathfindingDone(path)
 		self:startCourseWithAlignment(self.courseAfterPathfinding, self.waypointIxAfterPathfinding)
 	end
 end
+
+function AIDriver:getClosestPointOnFieldBoundary(x, z, fieldNum)
+	-- theoretically x/z could be on a _different_ field, but for now we ignore that case
+	if fieldNum > 0 and not courseplay:isField(x, z) then
+		-- the pathfinder needs both from/to positions to be on the field so if a  point is not on the
+		-- field, we need to use the closest point on the field boundary instead.
+		local closestPointToTargetIx = courseplay.generation:getClosestPolyPoint(courseplay.fields.fieldData[fieldNum].points, x, z)
+		return courseplay.fields.fieldData[ fieldNum ].points[ closestPointToTargetIx ].cx,
+		courseplay.fields.fieldData[ fieldNum ].points[ closestPointToTargetIx ].cz
+	else
+		return x, z
+	end
+end
+

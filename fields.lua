@@ -728,7 +728,7 @@ end
 function courseplay.fields:getFieldNumForPosition(positionX, positionZ)
 	local fieldNum = 0;
 	for index, field in pairs(courseplay.fields.fieldData) do
-		if positionX >= field.dimensions.math.minX and positionX <= field.dimensions.math.maxX and positionZ >= field.dimensions.math.minZ and positionZ <= field.dimensions.math.maxZ then
+		if positionX >= field.dimensions.minX and positionX <= field.dimensions.maxX and positionZ >= field.dimensions.minZ and positionZ <= field.dimensions.maxZ then
 			local _, pointInPoly, _, _ = self:getPolygonData(field.points, positionX, positionZ, true, true, true);
 			if pointInPoly then
 				fieldNum = index

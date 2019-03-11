@@ -280,8 +280,6 @@ function Course:enrichWaypointData()
 	self.waypoints[#self.waypoints].dToHere = self.totalDistance + self.waypoints[#self.waypoints - 1].dToNext
 	self.waypoints[#self.waypoints].turnsToHere = self.totalTurns
 	courseplay.debugFormat(12, 'Course with %d waypoints created, %.1f meters, %d turns', #self.waypoints, self.totalDistance, self.totalTurns)
---	self:print()
-
 end
 
 --- Is this the same course as otherCourse?
@@ -571,13 +569,14 @@ end
 -- @return true if shortened
 function Course:shorten(d)
 	local dCut = 0
-	for i = #self.waypoints - 1, 1, -1 do
+	local from = #self.waypoints - 1
+	for i = from, 1, -1 do
 		dCut = dCut + self.waypoints[i].dToNext
 		if dCut > d then
 			self:enrichWaypointData()
 			return true
 		end
-		self.wayponts[i] = nil
+		table.remove(self.waypoints)
 	end
 	self:enrichWaypointData()
 	return false

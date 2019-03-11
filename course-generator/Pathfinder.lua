@@ -201,10 +201,10 @@ function Pathfinder:generateGridForPolygon( polygon, gridSpacingHint )
 	-- this will make sure that the grid will have approximately 64^2 = 4096 points
 	-- TODO: probably need to take the aspect ratio into accont for odd shaped
 	-- (long and narrow) fields
-	-- But don't go below a certain limit as that would drive too close to the fruite
+	-- But don't go below a certain limit as that would drive too close to the fruit
 	-- for this limit, use a fraction to reduce the chance of ending up right on the field edge (assuming fields
 	-- are drawn using integer sizes) as that may result in a row or two missing in the grid
-	self.gridSpacing = gridSpacingHint or math.max( 4.071, math.sqrt( polygon.area ) / 64 )
+	self.gridSpacing = gridSpacingHint or math.max( 2.071, math.sqrt( polygon.area ) / 256 )
 	local horizontalLines = generateParallelTracks( polygon, {}, self.gridSpacing, self.gridSpacing / 2 )
 	if not horizontalLines then return grid end
 	-- we'll need this when trying to find the array index from the
@@ -277,7 +277,7 @@ end
 function Pathfinder:getNeighbors( theNode, grid )
 	local neighbors = {}
 	self.count = self.count + 1
-	if self.finder and self.count % 100 == 0 then
+	if self.finder and self.count % 50 == 0 then
 		self.yields = self.yields + 1
 		coroutine.yield(false)
 	end
@@ -381,11 +381,11 @@ function Pathfinder:run(fromNode, toNode, polygon, fruit, customHasFruitFunc, ad
 	if not courseGenerator.isRunningInGame() and addFruit then
 		self:addFruitGridDistanceFromBoundary( grid, polygon )
 	end
-	courseGenerator.debug( "Grid generated with %d points", #grid)
+	courseGenerator.debug( "Grid generated with %d points, grid spacing %.1f", #grid, self.gridSpacing)
 	self:addOffGridNode( grid, fromNode )
 	self:addOffGridNode( grid, toNode )
 	-- limit number of iterations depending on the grid size to avoid long freezes
-	local path = self:path( fromNode, toNode, grid, #grid)
+	local path = self:path( fromNode, toNode, grid, #grid * 10)
 	courseGenerator.debug( "Iterations %d, yields %d", self.count, self.yields)
 	if path then
 		path = Polyline:new( path )

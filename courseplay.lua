@@ -105,17 +105,17 @@ local function initialize()
 		'UnloadableFieldworkAIDriver',
 		'BaleLoaderAIDriver',
 		'ShovelModeAIDriver',
+    'course-generator/Pathfinder',
+    'course-generator/Island',
 	'course-generator/courseGenerator',
     'course-generator/CourseGeneratorScreen',
 	'course-generator/CoursePlot',
     'course-generator/cp',
-	'course-generator/Genetic',	
+	'course-generator/Genetic',
     'course-generator/track',
     'course-generator/center',
     'course-generator/headland',
-    'course-generator/geo',
-    'course-generator/Island',
-    'course-generator/Pathfinder'
+    'course-generator/geo'
 	};
 
 	local numFiles, numFilesLoaded = #(fileList) + 3, 3; -- + 3 as 'register.lua', 'courseplay.lua' and 'CpManager.lua' have already been loaded
