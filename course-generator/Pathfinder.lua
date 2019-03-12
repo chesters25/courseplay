@@ -25,7 +25,6 @@ function Pathfinder:init()
 	self.gridSpacing = 4
 	self.count = 0
 	self.yields = 0
-	self.biasToRight = 0
 	self.fruitToCheck = nil
 	self.customHasFruitFunc = nil
 end
@@ -80,7 +79,6 @@ end
 -- The A start adapted from https://github.com/lattejed/a-star-lua
 function Pathfinder:path (start, goal, nodes, max_iterations)
 
-	local closedset = {}
 	local openset = { start }
 	local came_from = {}
 	local iterations = 0
@@ -100,11 +98,11 @@ function Pathfinder:path (start, goal, nodes, max_iterations)
 		end
 
 		self:removeNode ( openset, current )
-		table.insert ( closedset, current )
+		current.onClosedSet = true
 
 		local neighbors = self:getNeighbors ( current, nodes )
 		for _, neighbor in ipairs ( neighbors ) do
-			if self:notIn ( closedset, neighbor ) then
+			if not neighbor.onClosedSet then
 
 				local tentative_g_score = g_score [ current ] + self:gScoreToNeighbor ( current, neighbor )
 
@@ -141,7 +139,7 @@ function Pathfinder:addFruitDistanceFromBoundary( grid, polygon )
 end
 
 function Pathfinder:addFruitGridDistanceFromBoundary( grid, polygon )
-	local distance = 1
+	local distance = 4
 	for y, row in ipairs( grid.map ) do
 		for x, index in pairs( row ) do
 			if x > distance + 1 and x <= #row - distance and y > distance and y <= #grid.map - distance  then
@@ -204,7 +202,7 @@ function Pathfinder:generateGridForPolygon( polygon, gridSpacingHint )
 	-- But don't go below a certain limit as that would drive too close to the fruit
 	-- for this limit, use a fraction to reduce the chance of ending up right on the field edge (assuming fields
 	-- are drawn using integer sizes) as that may result in a row or two missing in the grid
-	self.gridSpacing = gridSpacingHint or math.max( 2.071, math.sqrt( polygon.area ) / 256 )
+	self.gridSpacing = gridSpacingHint or math.max( 4.071, math.sqrt( polygon.area ) / 64 )
 	local horizontalLines = generateParallelTracks( polygon, {}, self.gridSpacing, self.gridSpacing / 2 )
 	if not horizontalLines then return grid end
 	-- we'll need this when trying to find the array index from the
@@ -290,17 +288,8 @@ function Pathfinder:getNeighbors( theNode, grid )
 				-- skip own node
 				if not ( column == theNode.column and row == theNode.row ) and grid.map[ row ] and grid.map[ row ][ column ] then
 					local neighbor = grid[ grid.map[ row ][ column ]]
-					local theNodeIsOk = self:isOnField( theNode ) and not self:hasFruit( theNode, self.gridSpacing * 2 )
-					local neighborIsOk = neighbor and self:isOnField( neighbor ) and not self:hasFruit( neighbor, self.gridSpacing * 2 )
-					if neighbor and
-						-- we only care about nodes with no fruit ...
-						( neighborIsOk or
-							-- ... or, if they have fruit, but the current node does not. This
-							-- eliminates most nodes with fruit (except the ones close to the harvested area)
-							-- and thus reduces the number of iterations significantly. However, no path will be
-							-- generated when one of the end points is in the fruit.
-							( not neighborIsOk and theNodeIsOk ))
-					then
+					--local theNodeIsOk = self:isOnField( theNode ) and not self:hasFruit( theNode, self.gridSpacing * 2 )
+					if neighbor and self:isOnField(neighbor) then
 						table.insert( neighbors, neighbor )
 						theNode.visited = true
 					end
@@ -319,7 +308,7 @@ end
 
 --- g() score to neighbor, considering the fruit on the field
 function Pathfinder:gScoreToNeighbor( node, neighbor )
-	if self:hasFruit( neighbor, self.gridSpacing * 2 ) then
+	if self:hasFruit(neighbor, self.gridSpacing) then
 		-- this is the key parameter to tweak. This is basically the distance you are
 		-- willing to travel in order not to cross one grid spacing of fruit. So, for
 		-- example with a grid spacing of 3 meters, you rather go around 250 meters
@@ -328,9 +317,7 @@ function Pathfinder:gScoreToNeighbor( node, neighbor )
 		-- first headland. This will minimize to amount of fruit you have to drive through.
 		return 250
 	else
-		-- add a little bias so a path from point A to B will be slightly different from the
-		-- point from B to A to avoid collisions when multiple tractors use the same route
-		return self:distance( node.x + self.biasToRight, node.y + self.biasToRight, neighbor.x, neighbor.y )
+		return self:distance( node.x, node.y, neighbor.x, neighbor.y )
 	end
 end
 
@@ -376,8 +363,6 @@ function Pathfinder:run(fromNode, toNode, polygon, fruit, customHasFruitFunc, ad
 	self.fruitToCheck = fruit
 	self.customHasFruitFunc = customHasFruitFunc
 	local grid, width = self:generateGridForPolygon( polygon )
-	-- hold a bit to the right
-	self.biasToRight = fromNode.x < toNode.x and width / 2 or -width / 2
 	if not courseGenerator.isRunningInGame() and addFruit then
 		self:addFruitGridDistanceFromBoundary( grid, polygon )
 	end
@@ -385,7 +370,9 @@ function Pathfinder:run(fromNode, toNode, polygon, fruit, customHasFruitFunc, ad
 	self:addOffGridNode( grid, fromNode )
 	self:addOffGridNode( grid, toNode )
 	-- limit number of iterations depending on the grid size to avoid long freezes
+
 	local path = self:path( fromNode, toNode, grid, #grid * 10)
+
 	courseGenerator.debug( "Iterations %d, yields %d", self.count, self.yields)
 	if path then
 		path = Polyline:new( path )
@@ -399,6 +386,7 @@ function Pathfinder:run(fromNode, toNode, polygon, fruit, customHasFruitFunc, ad
 			io.stdout:flush()
 		end
 	end
+
 	return true, path, grid
 end
 

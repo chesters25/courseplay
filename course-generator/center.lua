@@ -638,13 +638,11 @@ end
 function reorderTracksForSpiralFieldwork(parallelTracks)
 	local reorderedTracks = {}
 	for i = 1, math.floor(#parallelTracks / 2) do
-		print(i,#parallelTracks - i + 1 )
 		table.insert(reorderedTracks, parallelTracks[i])
 		table.insert(reorderedTracks, parallelTracks[#parallelTracks - i + 1])
 	end
 	if #parallelTracks % 2 ~= 0 then
 		table.insert(reorderedTracks, parallelTracks[math.ceil(#parallelTracks /2)])
-		print(math.ceil(#parallelTracks /2))
 	end
 	return reorderedTracks
 end
