@@ -416,7 +416,7 @@ end
 function AIDriver:checkLastWaypoint()
 	if self.ppc:reachedLastWaypoint() then
 		if self:onTemporaryCourse() then
-			-- alignment course to the first waypoint ended, start the main course now
+			-- temporary course to the first waypoint ended, start the main course now
 			self.ppc:setLookaheadDistance(PurePursuitController.normalLookAheadDistance)
 			self:startCourse(self.courseAfterTemporary, self.waypointIxAfterTemporary)
 			self.temporaryCourse = nil
@@ -1038,10 +1038,11 @@ function AIDriver:startCourseWithPathfinding(course, ix, vehicleIsOnField)
 			else
 				self:debug('Pathfinder already active')
 			end
+			return true
 		else
 			self:debug('Do not know which field I am on, falling back to alignment course')
+			return self:startCourseWithAlignment(course, ix)
 		end
-		return true
 	else
 		self:debug('Pathfinding turned off, falling back to alignment course')
 		return self:startCourseWithAlignment(course, ix)
@@ -1066,7 +1067,7 @@ function AIDriver:onPathfindingDone(path)
 		self:debug('Pathfinding finished with %d waypoints (%d ms)', #path, self.vehicle.timer - (self.pathFindingStartedAt or 0))
 		local temporaryCourse = Course(self.vehicle, courseGenerator.pointsToXz(path))
 		-- first remove a few waypoints from the path so we have room for the alignment course
-		if (temporaryCourse:shorten(self.vehicle.cp.turnDiameter * 1.5)) then
+		if temporaryCourse:getLength() > self.vehicle.cp.turnDiameter * 3 and temporaryCourse:shorten(self.vehicle.cp.turnDiameter * 1.5) then
 			self:debug('Path shortened to accommodate alignment, has now %d waypoints', temporaryCourse:getNumberOfWaypoints())
 			-- append an alignment course at the end of the path to the target waypoint
 			local x, _, z = temporaryCourse:getWaypointPosition(temporaryCourse:getNumberOfWaypoints())
@@ -1079,10 +1080,11 @@ function AIDriver:onPathfindingDone(path)
 			else
 				self:debug('Could not append an alignment course to the path')
 			end
+			self:startTemporaryCourse(temporaryCourse, self.courseAfterPathfinding, self.waypointIxAfterPathfinding)
 		else
-			self:debug('Could not make room for alignment course')
+			self:debug('Path too short, reverting to alignment course.')
+			self:startCourseWithAlignment(self.courseAfterPathfinding, self.waypointIxAfterPathfinding)
 		end
-		self:startTemporaryCourse(temporaryCourse, self.courseAfterPathfinding, self.waypointIxAfterPathfinding)
 	else
 		self:debug('Pathfinding finished, no path found, reverting to alignment course')
 		self:startCourseWithAlignment(self.courseAfterPathfinding, self.waypointIxAfterPathfinding)
