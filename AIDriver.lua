@@ -410,23 +410,6 @@ function AIDriver:startTemporaryCourse(tempCourse, nextCourse, ix)
 	self.ppc:initialize(1)
 end
 
---- Check if we are at the last waypoint and should we continue with first waypoint of the course
--- or stop.
-function AIDriver:onWaypointPassed(ix)
-	if ix == self.course:getNumberOfWaypoints() then
-		if self:onTemporaryCourse() then
-			-- temporary course to the first waypoint ended, start the main course now
-			self.ppc:setLookaheadDistance(PurePursuitController.normalLookAheadDistance)
-			self:startCourse(self.courseAfterTemporary, self.waypointIxAfterTemporary)
-			self.temporaryCourse = nil
-			self:debug('Temporary course finished, starting next course at waypoint %d', self.waypointIxAfterTemporary)
-			self:onEndTemporaryCourse()
-		else
-			self:onEndCourse()
-		end
-	end
-end
-
 --- Do whatever is needed after the temporary course is ended
 function AIDriver:onEndTemporaryCourse()
 	-- nothing in general, derived classes will implement when needed
@@ -486,9 +469,23 @@ end
 
 function AIDriver:onWaypointPassed(ix)
 	self:debug('onWaypointPassed %d', ix)
-	-- default behaviour for mode 5 (transport), if a waypoint with the wait attribute is
-	-- passed stop until the user presses the continue button
-	if self.course:isWaitAt(ix) then
+	--- Check if we are at the last waypoint and should we continue with first waypoint of the course
+	-- or stop.
+	if ix == self.course:getNumberOfWaypoints() then
+		if self:onTemporaryCourse() then
+			-- temporary course to the first waypoint ended, start the main course now
+			self.ppc:setLookaheadDistance(PurePursuitController.normalLookAheadDistance)
+			self:startCourse(self.courseAfterTemporary, self.waypointIxAfterTemporary)
+			self.temporaryCourse = nil
+			self:debug('Temporary course finished, starting next course at waypoint %d', self.waypointIxAfterTemporary)
+			self:onEndTemporaryCourse()
+		else
+			self:debug('Last waypoint reached, end of course.')
+			self:onEndCourse()
+		end
+	elseif self.course:isWaitAt(ix) then
+		-- default behaviour for mode 5 (transport), if a waypoint with the wait attribute is
+		-- passed stop until the user presses the continue button
 		self:stop('WAIT_POINT')
 		-- show continue button
 		courseplay.hud:setReloadPageOrder(self.vehicle, 1, true);
@@ -616,7 +613,8 @@ function AIDriver:drawTemporaryCourse()
 	for i = 1, self.temporaryCourse:getNumberOfWaypoints() - 1 do
 		local x, y, z = self.temporaryCourse:getWaypointPosition(i)
 		local nx, ny, nz = self.temporaryCourse:getWaypointPosition(i + 1)
-		cpDebug:drawLine(x, y + 3, z, 100, 0, 100, nx, ny + 3, nz)
+		cpDebug:drawPoint(x, y + 3, z, 10, 0, 0)
+		cpDebug:drawLine(x, y + 3, z, 0, 0, 100, nx, ny + 3, nz)
 	end
 end
 
@@ -1040,12 +1038,11 @@ function AIDriver:startCourseWithPathfinding(course, ix, vehicleIsOnField)
 			return true
 		else
 			self:debug('Do not know which field I am on, falling back to alignment course')
-			return self:startCourseWithAlignment(course, ix)
 		end
 	else
 		self:debug('Pathfinding turned off, falling back to alignment course')
-		return self:startCourseWithAlignment(course, ix)
 	end
+	return self:startCourseWithAlignment(course, ix)
 end
 
 function AIDriver:updatePathfinding()

@@ -275,7 +275,7 @@ end
 function Pathfinder:getNeighbors( theNode, grid )
 	local neighbors = {}
 	self.count = self.count + 1
-	if self.finder and self.count % 50 == 0 then
+	if self.finder and self.count % 20 == 0 then
 		self.yields = self.yields + 1
 		coroutine.yield(false)
 	end

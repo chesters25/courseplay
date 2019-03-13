@@ -329,6 +329,7 @@ function FieldworkAIDriver:onEndCourse()
 		self:debug('AI driver in mode %d continue fieldwork at %d/%d waypoints', self:getMode(), self.fieldworkAbortedAtWaypoint, self.fieldworkCourse:getNumberOfWaypoints())
 		self:startFieldworkWithPathfinding(self.vehicle.cp.fieldworkAbortedAtWaypoint or self.fieldworkAbortedAtWaypoint)
 	else
+		self:debug('Fieldwork AI driver in mode %d ending course', self:getMode())
 		AIDriver.onEndCourse(self)
 	end
 end
@@ -338,7 +339,6 @@ function FieldworkAIDriver:onWaypointPassed(ix)
 		self:debug('onWaypointPassed %d, ignored as turn is driving now', ix)
 		return
 	end
-	self:debug('onWaypointPassed %d', ix)
 	if self.state == self.states.ON_FIELDWORK_COURSE then
 		if self.fieldworkState == self.states.WORKING then
 			-- check for transition to connecting track
