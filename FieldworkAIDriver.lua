@@ -363,6 +363,7 @@ function FieldworkAIDriver:onWaypointPassed(ix)
 			end
 		end
 	end
+	AIDriver.onWaypointPassed(self, ix)
 end
 
 function FieldworkAIDriver:onWaypointChange(ix)

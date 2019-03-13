@@ -276,7 +276,6 @@ function AIDriver:drive(dt)
 		self:hold()
 	end
 
-	self:checkLastWaypoint()
 	self:driveCourse(dt)
 
 	self:drawTemporaryCourse()
@@ -413,8 +412,8 @@ end
 
 --- Check if we are at the last waypoint and should we continue with first waypoint of the course
 -- or stop.
-function AIDriver:checkLastWaypoint()
-	if self.ppc:reachedLastWaypoint() then
+function AIDriver:onWaypointPassed(ix)
+	if ix == self.course:getNumberOfWaypoints() then
 		if self:onTemporaryCourse() then
 			-- temporary course to the first waypoint ended, start the main course now
 			self.ppc:setLookaheadDistance(PurePursuitController.normalLookAheadDistance)
