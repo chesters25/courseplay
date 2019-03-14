@@ -702,6 +702,10 @@ function FieldworkAIDriver:calculateLoweringDuration()
 	end
 end
 
+function FieldworkAIDriver:getLoweringDurationMs()
+	return self.loweringDurationMs
+end
+
 
 
 --- If we are towing an implement, move to a bigger radius in tight turns

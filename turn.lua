@@ -2133,7 +2133,13 @@ function courseplay.getWpIxInDistanceFromEnd(turnTargets, d, turnEndNode)
 end
 
 function courseplay.setLowerImplementsPoint(vehicle, d, turnEndNode)
-	local lowerImplementAt = courseplay.getWpIxInDistanceFromEnd(vehicle.cp.turnTargets, d, turnEndNode)
+	local loweringDistance = d
+	if vehicle.cp.driver and cp.driver.getLoweringDurationMs then
+		loweringDistance = vehicle.lastSpeed * vehicle.cp.driver:getLoweringDurationMs() -- vehicle.lastSpeed is in meters per millisecond
+		courseplay:debug(string.format("%s:(Turn) Last speed is %.1f, lowering duration is %d ms, will lower implements at %.1f m",
+			nameNum(vehicle), vehicle.lastSpeed * 3600, vehicle.cp.driver:getLoweringDurationMs(), loweringDistance), 14);
+	end
+	local lowerImplementAt = courseplay.getWpIxInDistanceFromEnd(vehicle.cp.turnTargets, loweringDistance, turnEndNode)
 	if lowerImplementAt then
 		courseplay:debug(string.format("%s:(Turn) will lower implements at waypoint %d", nameNum(vehicle), lowerImplementAt), 14);
 		vehicle.cp.turnTargets[lowerImplementAt].lowerImplement = true
