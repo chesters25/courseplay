@@ -2134,9 +2134,9 @@ end
 
 function courseplay.setLowerImplementsPoint(vehicle, d, turnEndNode)
 	local loweringDistance = d
-	if vehicle.cp.driver and cp.driver.getLoweringDurationMs then
+	if vehicle.cp.driver and vehicle.cp.driver.getLoweringDurationMs then
 		loweringDistance = vehicle.lastSpeed * vehicle.cp.driver:getLoweringDurationMs() -- vehicle.lastSpeed is in meters per millisecond
-		courseplay:debug(string.format("%s:(Turn) Last speed is %.1f, lowering duration is %d ms, will lower implements at %.1f m",
+		courseplay:debug(string.format("%s:(Turn) Last speed is %.1f km/h, lowering duration is %d ms, will lower implements at %.1f m",
 			nameNum(vehicle), vehicle.lastSpeed * 3600, vehicle.cp.driver:getLoweringDurationMs(), loweringDistance), 14);
 	end
 	local lowerImplementAt = courseplay.getWpIxInDistanceFromEnd(vehicle.cp.turnTargets, loweringDistance, turnEndNode)

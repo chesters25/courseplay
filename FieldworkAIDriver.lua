@@ -230,6 +230,7 @@ function FieldworkAIDriver:driveFieldwork()
 		self:manageConvoy()
 		self:checkWeather()
 		self:checkFillLevels()
+		self:checkFruit()
 	elseif self.fieldworkState == self.states.UNLOAD_OR_REFILL_ON_FIELD then
 		self:driveFieldworkUnloadOrRefill()
 	elseif self.fieldworkState == self.states.TEMPORARY then
@@ -786,4 +787,16 @@ function FieldworkAIDriver:raiseImplements()
 		implement.object:aiImplementEndLine()
 	end
 	self.vehicle:raiseStateChange(Vehicle.STATE_CHANGE_AI_END_LINE)
+end
+
+function FieldworkAIDriver:checkFruit()
+	if g_updateLoopIndex % 150 == 0 then
+		local dx,_,dz = localDirectionToWorld(self.vehicle:getAIVehicleDirectionNode(), 0, 0, 1)
+		local length = MathUtil.vector2Length(dx,dz)
+		dx = dx / length
+		dz = dz / length
+		self.vehicle.aiDriveDirection = {dx, dz}
+		local left, right = AIVehicleUtil.getValidityOfTurnDirections(self.vehicle)
+		self:debug('Fruit left: %.2f right %.2f', left, right)
+	end
 end
