@@ -575,15 +575,19 @@ function courseplay:setMarkers(vehicle, object)
 	 
 
 	local activeInputAttacherJoint = object.getActiveInputAttacherJoint and object:getActiveInputAttacherJoint()
-	if not activeInputAttacherJoint then
+	local jointType 
+	if activeInputAttacherJoint then
+		jointType = activeInputAttacherJoint.jointType
+	else
+		-- some vehicles like cotton harvester have no attachable headers but we still need the
+		-- work area and the front/back markers so do not return here
 		courseplay.debugVehicle(6, vehicle, 'setMarkers(): no attacher joints')
-		return
 	end
 
 	if not courseplay:hasWorkAreas(object) then
-		if courseplay:isWheeledWorkTool(object) and activeInputAttacherJoint.jointType and vehicleDistances.turningNodeToRearTrailerAttacherJoints[activeInputAttacherJoint.jointType] then 
+		if courseplay:isWheeledWorkTool(object) and jointType and vehicleDistances.turningNodeToRearTrailerAttacherJoints[jointType] then 
 			-- Calculate the offset based on the distances
-			local ztt = vehicleDistances.turningNodeToRearTrailerAttacherJoints[activeInputAttacherJoint.jointType] * -1;
+			local ztt = vehicleDistances.turningNodeToRearTrailerAttacherJoints[jointType] * -1;
 
 			local backMarkerCorrection = Utils.getNoNil(object.cp.backMarkerOffsetCorection, 0);
 			if vehicle.cp.backMarkerOffset == nil or (abs(backMarkerCorrection) > 0 and  ztt + backMarkerCorrection > vehicle.cp.backMarkerOffset) then
@@ -609,58 +613,50 @@ function courseplay:setMarkers(vehicle, object)
 		return;
 	end
 
-	-- TODO: figure out what other types to avoid, the FS17 types ending with DROP do not seem to exist anymore
-	local avoidType = {
-		[WorkAreaType.RIDGEMARKER] = true
-	}
-	for k, area in courseplay:workAreaIterator(object) do
-		if not avoidType[area.type] then
-			for j,node in pairs(area) do
-				if j == "start" or j == "height" or j == "width" then
-					local x, y, z;
-					local ztt = 0;
-					local type;
+	for _, area in courseplay:workAreaIterator(object) do
+		for j,node in pairs(area) do
+			if j == "start" or j == "height" or j == "width" then
+				local x, y, z;
+				local ztt = 0;
+				local type;
 
-					if pivotJointNode and activeInputAttacherJoint.jointType and vehicleDistances.turningNodeToRearTrailerAttacherJoints[activeInputAttacherJoint.jointType] then 
-						type = "Pivot Trailer";
-						-- TODO: use localToLocal instead of a getWorldTranslation and a worldToLocal
-						x, y, z = getWorldTranslation(pivotJointNode);
+				if pivotJointNode and jointType and vehicleDistances.turningNodeToRearTrailerAttacherJoints[jointType] then
+					type = "Pivot Trailer";
+					-- TODO: use localToLocal instead of a getWorldTranslation and a worldToLocal
+					x, y, z = getWorldTranslation(pivotJointNode);
 
-						-- Get the marker offset from the pivot node.
-						_, _, ztt = worldToLocal(node, x, y, z);
+					-- Get the marker offset from the pivot node.
+					_, _, ztt = worldToLocal(node, x, y, z);
 
-						-- Calculate the offset based on the distances
-						 ztt = ((vehicleDistances.turningNodeToRearTrailerAttacherJoints[activeInputAttacherJoint.jointType] + objectDistances.attacherJointToPivot) * -1) - ztt; 
+					-- Calculate the offset based on the distances
+					ztt = ((vehicleDistances.turningNodeToRearTrailerAttacherJoints[jointType] + objectDistances.attacherJointToPivot) * -1) - ztt;
 
-					 elseif courseplay:isWheeledWorkTool(object) and activeInputAttacherJoint.jointType and vehicleDistances.turningNodeToRearTrailerAttacherJoints[activeInputAttacherJoint.jointType] then 
-						type = "Trailer";
-						x, y, z = getWorldTranslation(activeInputAttacherJoint.node) 
+				elseif courseplay:isWheeledWorkTool(object) and jointType and vehicleDistances.turningNodeToRearTrailerAttacherJoints[jointType] then
+					type = "Trailer";
+					x, y, z = getWorldTranslation(activeInputAttacherJoint.node)
 
-						-- Get the marker offset from the pivot node.
-						_, _, ztt = worldToLocal(node, x, y, z);
+					-- Get the marker offset from the pivot node.
+					_, _, ztt = worldToLocal(node, x, y, z);
 
-						-- Calculate the offset based on the distances
-						ztt = (vehicleDistances.turningNodeToRearTrailerAttacherJoints[activeInputAttacherJoint.jointType] * -1) - ztt; 
+					-- Calculate the offset based on the distances
+					ztt = (vehicleDistances.turningNodeToRearTrailerAttacherJoints[jointType] * -1) - ztt;
 
-					else
-						type = "Vehicle";
-						x, y, z = getWorldTranslation(node);
-						_, _, ztt = worldToLocal(realDirectionNode, x, y, z);
-					end;
+				else
+					type = "Vehicle";
+					x, y, z = getWorldTranslation(node);
+					_, _, ztt = worldToLocal(realDirectionNode, x, y, z);
+				end;
 
-					courseplay.debugVehicle(6, vehicle, '%s %s (%s) %s: ztt = %.2f',
-						object:getName(), type, g_workAreaTypeManager.workAreaTypes[area.type].name, tostring(j), ztt)
-					if object.cp.backMarkerOffset == nil or ztt + Utils.getNoNil(object.cp.backMarkerOffsetCorection, 0) > object.cp.backMarkerOffset then
-						object.cp.backMarkerOffset = ztt + Utils.getNoNil(object.cp.backMarkerOffsetCorection, 0);
-					end
-					if object.cp.aiFrontMarker == nil or ztt + Utils.getNoNil(object.cp.frontMarkerOffsetCorection, 0) < object.cp.aiFrontMarker then
-						object.cp.aiFrontMarker = ztt + Utils.getNoNil(object.cp.frontMarkerOffsetCorection, 0);
-					end
+				courseplay.debugVehicle(6, vehicle, '%s %s (%s) %s: ztt = %.2f',
+					object:getName(), type, g_workAreaTypeManager.workAreaTypes[area.type].name, tostring(j), ztt)
+				if object.cp.backMarkerOffset == nil or ztt + Utils.getNoNil(object.cp.backMarkerOffsetCorection, 0) > object.cp.backMarkerOffset then
+					object.cp.backMarkerOffset = ztt + Utils.getNoNil(object.cp.backMarkerOffsetCorection, 0);
+				end
+				if object.cp.aiFrontMarker == nil or ztt + Utils.getNoNil(object.cp.frontMarkerOffsetCorection, 0) < object.cp.aiFrontMarker then
+					object.cp.aiFrontMarker = ztt + Utils.getNoNil(object.cp.frontMarkerOffsetCorection, 0);
 				end
 			end
-		else
-			courseplay.debugVehicle(6, vehicle, "Avoiding workArea Type %s", g_workAreaTypeManager.workAreaTypes[area.type].name)
-		end;
+		end
 	end
 
 	if vehicle.cp.backMarkerOffset == nil or object.cp.backMarkerOffset < (vehicle.cp.backMarkerOffset + aLittleBitMore) then
@@ -671,6 +667,7 @@ function courseplay:setMarkers(vehicle, object)
 		vehicle.cp.aiFrontMarker = object.cp.aiFrontMarker + aLittleBitMore * 0.75;
 	end
 
+	courseplay:debug(('%s: setMarkers(): cp.backMarkerOffset = %s, cp.aiFrontMarker = %s'):format(nameNum(object), tostring(object.cp.backMarkerOffset), tostring(object.cp.aiFrontMarker)), 6);
 	courseplay:debug(('%s: setMarkers(): cp.backMarkerOffset = %s, cp.aiFrontMarker = %s'):format(nameNum(vehicle), tostring(vehicle.cp.backMarkerOffset), tostring(vehicle.cp.aiFrontMarker)), 6);
 end;
 
@@ -1807,16 +1804,33 @@ end
 
 --- Iterator for all work areas of an object
 function courseplay:workAreaIterator(object)
+	local avoidType = {
+		[WorkAreaType.RIDGEMARKER] = true,
+		[WorkAreaType.COMBINECHOPPER] = true,
+		[WorkAreaType.COMBINESWATH] = true
+	}
 	local i = 0
 	return function()
 		i = i + 1
 		local wa = object and object.getWorkAreaByIndex and object:getWorkAreaByIndex(i)
-		if wa then return i, wa end
+		while wa do
+			courseplay.debugVehicle(6, object, 'check %d-%s', i, g_workAreaTypeManager.workAreaTypes[wa.type].name)
+			if wa and not avoidType[wa.type] then return i, wa end
+			if wa then
+				courseplay.debugVehicle(6, object, 'ignore %d-%s', i, g_workAreaTypeManager.workAreaTypes[wa.type].name)
+			end
+			i = i + 1
+			wa = object and object.getWorkAreaByIndex and object:getWorkAreaByIndex(i)
+		end
 	end
 end
 
-function courseplay:hasWorkAreas(object) 
-	return object and object.getWorkAreaByIndex and object:getWorkAreaByIndex(1)
+function courseplay:hasWorkAreas(object)
+	local nWa = 0
+	for _, _ in courseplay:workAreaIterator(object) do
+		nWa = nWa + 1
+	end
+	return nWa > 0
 end
 
 --- Get the working width of thing. Will return the maximum of the working width of thing and

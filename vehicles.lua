@@ -1348,6 +1348,7 @@ end;
 
 local allowedJointType = {};
 function courseplay:isWheeledWorkTool(workTool)
+	if not workTool.spec_attachable then return false end
 	if #allowedJointType == 0 then
 		local jointTypeList = {"implement", "trailer", "trailerLow", "semitrailer"};
 		for _,jointType in ipairs(jointTypeList) do
@@ -1366,8 +1367,8 @@ function courseplay:isWheeledWorkTool(workTool)
 		if node then
 			-- Trailers
 			if (activeInputAttacherJoint.jointType ~= AttacherJoints.JOINTTYPE_IMPLEMENT)
-			-- Implements with pivot and wheels that do not lift the wheels from the ground.
-			or (node ~= workTool.rootNode and activeInputAttacherJoint.jointType == AttacherJoints.JOINTTYPE_IMPLEMENT and (not activeInputAttacherJoint.topReferenceNode or workTool.cp.implementWheelAlwaysOnGround))
+				-- Implements with pivot and wheels that do not lift the wheels from the ground.
+				or (node ~= workTool.rootNode and activeInputAttacherJoint.jointType == AttacherJoints.JOINTTYPE_IMPLEMENT and (not activeInputAttacherJoint.topReferenceNode or workTool.cp.implementWheelAlwaysOnGround))
 			then
 				return true;
 			end;

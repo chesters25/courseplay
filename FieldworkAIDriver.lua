@@ -160,6 +160,7 @@ function FieldworkAIDriver:startFieldworkWithAlignment(ix)
 end
 
 
+
 function FieldworkAIDriver:startFieldworkWithPathfinding(ix)
 	if self:startCourseWithPathfinding(self.fieldworkCourse, ix, false) then
 		self.state = self.states.ON_FIELDWORK_COURSE
