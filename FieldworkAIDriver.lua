@@ -80,8 +80,8 @@ function FieldworkAIDriver.register()
 	AIVehicle.getCanStartAIVehicle = Utils.overwrittenFunction(AIVehicle.getCanStartAIVehicle,
 		function(self, superFunc)
 			-- Only the courseplay helper can handle bale loaders.
-			if FieldworkAIDriver.hasImplementWithSpecializationAttached(self, BaleLoader) or
-				FieldworkAIDriver.hasImplementWithSpecializationAttached(self, Pickup) then
+			if FieldworkAIDriver.hasImplementWithSpecialization(self, BaleLoader) or
+				FieldworkAIDriver.hasImplementWithSpecialization(self, Pickup) then
 				return false
 			end
 			if superFunc ~= nil then
@@ -114,11 +114,15 @@ function FieldworkAIDriver.register()
 	Pickup.registerEventListeners = Utils.appendedFunction(Pickup.registerEventListeners, PickupRegisterEventListeners)
 end
 
-function FieldworkAIDriver.hasImplementWithSpecializationAttached(vehicle, specialization)
+function FieldworkAIDriver.hasImplementWithSpecialization(vehicle, specialization)
+	return FieldworkAIDriver.getImplementWithSpecialization(vehicle, specialization) ~= nil
+end
+
+function FieldworkAIDriver.getImplementWithSpecialization(vehicle, specialization)
 	local aiImplements = vehicle:getAttachedAIImplements()
 	for _, implement in ipairs(aiImplements) do
 		if SpecializationUtil.hasSpecialization(specialization, implement.object.specializations) then
-			return true
+			return implement.object
 		end
 	end
 end
@@ -680,8 +684,12 @@ function FieldworkAIDriver:updateLights()
 	if self.state == self.states.ON_UNLOAD_OR_REFILL_COURSE and self:areBeaconLightsEnabled() then
 		self.vehicle:setBeaconLightsVisibility(true)
 	else
-		self.vehicle:setBeaconLightsVisibility(false)
+		self:updateLightsOnField()
 	end
+end
+
+function FieldworkAIDriver:updateLightsOnField()
+	self.vehicle:setBeaconLightsVisibility(false)
 end
 
 function FieldworkAIDriver:startLoweringDurationTimer()
@@ -790,13 +798,14 @@ function FieldworkAIDriver:raiseImplements()
 end
 
 function FieldworkAIDriver:checkFruit()
-	if g_updateLoopIndex % 150 == 0 then
+	if self.vehicle.spec_combine and g_updateLoopIndex % 150 == 0 then
+		-- getValidityOfTurnDirections() wants to have the vehicle.aiDriveDirection, so get that here.
 		local dx,_,dz = localDirectionToWorld(self.vehicle:getAIVehicleDirectionNode(), 0, 0, 1)
 		local length = MathUtil.vector2Length(dx,dz)
 		dx = dx / length
 		dz = dz / length
 		self.vehicle.aiDriveDirection = {dx, dz}
-		local left, right = AIVehicleUtil.getValidityOfTurnDirections(self.vehicle)
-		self:debug('Fruit left: %.2f right %.2f', left, right)
+		self.fruitLeft, self.fruitRight = AIVehicleUtil.getValidityOfTurnDirections(self.vehicle)
+		self:debug('Fruit left: %.2f right %.2f', self.fruitLeft, self.fruitRight)
 	end
 end

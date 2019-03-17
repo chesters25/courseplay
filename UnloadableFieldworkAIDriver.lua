@@ -45,12 +45,16 @@ function UnloadableFieldworkAIDriver:init(vehicle)
 	self.mode = courseplay.MODE_FIELDWORK
 	self.stopImplementsWhileUnloadOrRefillOnField = false
 	self.lastEmptyTimestamp = 0
+	self.litersPerMeter = 0
+	self.fillLevelAtLastWaypoint = 0
 end
 
 
 function UnloadableFieldworkAIDriver.create(vehicle)
-	if FieldworkAIDriver.hasImplementWithSpecializationAttached(vehicle, BaleLoader) then
+	if FieldworkAIDriver.hasImplementWithSpecialization(vehicle, BaleLoader) then
 		return BaleLoaderAIDriver(vehicle)
+	elseif FieldworkAIDriver.hasImplementWithSpecialization(vehicle, Baler) then
+		return BalerAIDriver(vehicle)
 	else
 		return UnloadableFieldworkAIDriver(vehicle)
 	end
@@ -199,10 +203,6 @@ end
 -- with fruit
 function UnloadableFieldworkAIDriver:isLevelOk(workTool, index, fillUnit)
 	local pc = 100 * workTool:getFillUnitFillLevelPercentage(index)
-	if courseplay:isBaler(workTool) then
-		self:handleBalers(workTool)
-		return true
-	end
 	local fillTypeName = g_fillTypeManager:getFillTypeNameByIndex(fillUnit.fillType)
 	if self:shouldStopForUnloading(pc) then
 		self:debugSparse('Stop for unloading: %s: %.2f', fillTypeName, pc )
@@ -292,58 +292,38 @@ function UnloadableFieldworkAIDriver:updateOffset()
 	end
 end
 
-function UnloadableFieldworkAIDriver:handleBalers(workTool)
-	-- no baler, return
-	if not workTool then return end
+function UnloadableFieldworkAIDriver:getFillLevelInfoText()
+	return 'NEEDS_UNLOADING'
+end
 
-	-- turn.lua will raise/lower as needed, don't touch the balers while the turn maneuver is executed
-	if self.turnIsDriving then return end
-
-	--if vehicle.cp.waypointIndex >= vehicle.cp.startWork + 1 and vehicle.cp.waypointIndex < vehicle.cp.stopWork and vehicle.cp.turnStage == 0 then
-	--  vehicle, workTool, unfold, lower, turnOn, allowedToDrive, cover, unload, ridgeMarker,forceSpeedLimit,workSpeed)
-	local specialTool, allowedToDrive, stoppedForReason = courseplay:handleSpecialTools(self.vehicle, workTool, true, true, true, true, nil, nil, nil);
-	if not specialTool then
-		-- automatic opening for balers
-		local capacity = workTool.cp.capacity
-		local fillLevel = workTool.cp.fillLevel
-		if workTool.spec_baler ~= nil then
-
-			--print(string.format("if courseplay:isRoundbaler(workTool)(%s) and fillLevel(%s) > capacity(%s) * 0.9 and fillLevel < capacity and workTool.spec_baler.unloadingState(%s) == Baler.UNLOADING_CLOSED(%s) then",
-			--tostring(courseplay:isRoundbaler(workTool)),tostring(fillLevel),tostring(capacity),tostring(workTool.spec_baler.unloadingState),tostring(Baler.UNLOADING_CLOSED)))
-			if courseplay:isRoundbaler(workTool) and fillLevel > capacity * 0.9 and fillLevel < capacity and workTool.spec_baler.unloadingState == Baler.UNLOADING_CLOSED then
-				if not workTool.spec_turnOnVehicle.isTurnedOn and not stoppedForReason then
-					workTool:setIsTurnedOn(true, false);
-				end;
-				self:setSpeed(self.vehicle.cp.speeds.turn)
-			elseif fillLevel >= capacity and workTool.spec_baler.unloadingState == Baler.UNLOADING_CLOSED then
-				allowedToDrive = false;
-				if #(workTool.spec_baler.bales) > 0 and workTool.spec_baleWrapper == nil then --Ensures the baler wrapper combo is empty before unloading
-					workTool:setIsUnloadingBale(true, false)
-				end
-			elseif workTool.spec_baler.unloadingState ~= Baler.UNLOADING_CLOSED then
-				allowedToDrive = false
-				if workTool.spec_baler.unloadingState == Baler.UNLOADING_OPEN then
-					workTool:setIsUnloadingBale(false)
-				end
-			elseif fillLevel >= 0 and not workTool:getIsTurnedOn() and workTool.spec_baler.unloadingState == Baler.UNLOADING_CLOSED then
-				workTool:setIsTurnedOn(true, false);
+function UnloadableFieldworkAIDriver:onWaypointPassed(ix)
+	FieldworkAIDriver.onWaypointPassed(self, ix)
+	-- calculate fill rate so the combine driver knows if it can make the next row without unloading
+	if self.vehicle.spec_combine then
+		local fillLevel = self.vehicle:getFillUnitFillLevel(spec.fillUnitIndex)
+		self.litersPerMeter = (fillLevel - self.fillLevelAtLastWaypoint) / self.course:getDistanceToNextWaypoint(ix - 1)
+		-- smooth a bit
+		self.fillLevelAtLastWaypoint = (self.fillLevelAtLastWaypoint + fillLevel) / 2
+		self:debug('Fill rate is %.1f liter/meter')
+		local capacity = self.vehicle:getFillUnitCapacity(spec.fillUnitIndex)
+		-- handle beacon lights to call unload driver
+		-- copy/paste from AIDriveStrategyCombine
+		if fillLevel > (0.8 * capacity) then
+			if not self.beaconLightsActive then
+				self.vehicle:setAIMapHotspotBlinking(true)
+				self.vehicle:setBeaconLightsVisibility(true)
+				self.beaconLightsActive = true
 			end
-			if workTool.spec_baleWrapper and workTool.spec_baleWrapper.baleWrapperState == BaleWrapper.STATE_WRAPPER_FINSIHED then --Unloads the baler wrapper combo
-				workTool:doStateChange(BaleWrapper.CHANGE_WRAPPER_START_DROP_BALE)
+		else
+			if self.beaconLightsActive then
+				self.vehicle:setAIMapHotspotBlinking(false)
+				self.vehicle:setBeaconLightsVisibility(false)
+				self.beaconLightsActive = false
 			end
 		end
-		if workTool.setPickupState ~= nil then
-			if workTool.spec_pickup ~= nil and not workTool.spec_pickup.isLowered then
-				workTool:setPickupState(true, false);
-				courseplay:debug(string.format('%s: lower pickup order', nameNum(workTool)), 17);
-			end;
-		end;
-	end
-	if not allowedToDrive then
-		self:setSpeed(0)
 	end
 end
 
-function UnloadableFieldworkAIDriver:getFillLevelInfoText()
-	return 'NEEDS_UNLOADING'
+function UnloadableFieldworkAIDriver:updateLightsOnField()
+	-- do nothing here, this is handled by onWaypointPassed()
 end
