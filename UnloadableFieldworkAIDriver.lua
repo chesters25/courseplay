@@ -297,14 +297,18 @@ function UnloadableFieldworkAIDriver:getFillLevelInfoText()
 end
 
 function UnloadableFieldworkAIDriver:onWaypointPassed(ix)
-	FieldworkAIDriver.onWaypointPassed(self, ix)
 	-- calculate fill rate so the combine driver knows if it can make the next row without unloading
 	if self.vehicle.spec_combine then
+		local spec = self.vehicle.spec_combine
 		local fillLevel = self.vehicle:getFillUnitFillLevel(spec.fillUnitIndex)
-		self.litersPerMeter = (fillLevel - self.fillLevelAtLastWaypoint) / self.course:getDistanceToNextWaypoint(ix - 1)
-		-- smooth a bit
-		self.fillLevelAtLastWaypoint = (self.fillLevelAtLastWaypoint + fillLevel) / 2
-		self:debug('Fill rate is %.1f liter/meter')
+
+		if ix > 1 then
+			self.litersPerMeter = (fillLevel - self.fillLevelAtLastWaypoint) / self.course:getDistanceToNextWaypoint(ix - 1)
+			-- smooth a bit
+			self.fillLevelAtLastWaypoint = (self.fillLevelAtLastWaypoint + fillLevel) / 2
+			self:debug('Fill rate is %.1f liter/meter', self.litersPerMeter)
+		end
+
 		local capacity = self.vehicle:getFillUnitCapacity(spec.fillUnitIndex)
 		-- handle beacon lights to call unload driver
 		-- copy/paste from AIDriveStrategyCombine
@@ -322,6 +326,7 @@ function UnloadableFieldworkAIDriver:onWaypointPassed(ix)
 			end
 		end
 	end
+	FieldworkAIDriver.onWaypointPassed(self, ix)
 end
 
 function UnloadableFieldworkAIDriver:updateLightsOnField()
