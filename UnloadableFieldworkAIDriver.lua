@@ -61,7 +61,7 @@ end
 
 function UnloadableFieldworkAIDriver:drive(dt)
 	-- only reason we need this is to update the totalFillLevel for reverse.lua so it will
-	-- do a raycast for tip triggers
+	-- do a raycast for tip triggers (side effects, side effects all over the place, killing me...)
 	courseplay:updateFillLevelsAndCapacities(self.vehicle)
 	-- handle the pipe in any state
 	self:handlePipe()
