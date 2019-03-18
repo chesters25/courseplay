@@ -298,7 +298,7 @@ function FieldworkAIDriver:driveFieldworkUnloadOrRefill()
 		end
 	elseif self.fieldWorkUnloadOrRefillState == self.states.WAITING_FOR_UNLOAD_OR_REFILL then
 		if self:allFillLevelsOk() and not self.heldForUnloadRefill then
-			self:debug('unloaded/refilled, continue working')
+			self:debug('unloaded, continue working')
 			-- not full/empty anymore, maybe because Refilling to a trailer, go back to work
 			self:clearInfoText(self:getFillLevelInfoText())
 			self:changeToFieldwork()

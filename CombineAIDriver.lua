@@ -21,12 +21,13 @@ CombineAIDriver = CpObject(UnloadableFieldworkAIDriver)
 
 CombineAIDriver.myStates = {
 	PULLING_BACK_FOR_UNLOAD = {},
-	WAIT_FOR_UNLOAD_AFTER_PULLED_BACK = {}
+	WAITING_FOR_UNLOAD_AFTER_PULLED_BACK = {}
 }
 
 function CombineAIDriver:init(vehicle)
 	courseplay.debugVehicle(11, vehicle, 'CombineAIDriver:init()')
 	UnloadableFieldworkAIDriver.init(self, vehicle)
+	self:initStates(CombineAIDriver.myStates)
 	self.fruitLeft, self.fruitRight = 0, 0
 	self.litersPerMeter = 0
 	self.fillLevelAtLastWaypoint = 0
@@ -35,7 +36,6 @@ end
 
 function CombineAIDriver:onWaypointPassed(ix)
 	self:checkDistanceUntilFull(ix)
-	self:checkFruit()
 	UnloadableFieldworkAIDriver.onWaypointPassed(self, ix)
 end
 
@@ -47,7 +47,7 @@ function CombineAIDriver:changeToFieldworkUnloadOrRefill()
 		if pullBackCourse then
 			self:debug('Pipe in fruit, pulling back to make room for unloading')
 			self.fieldworkState = self.states.UNLOAD_OR_REFILL_ON_FIELD
-			self.fieldWorkUnloadOrRefillState = self.states.PULLING_BACK_FOR_UNLOAD
+			self.fieldWorkUnloadOrRefillState = self.states.WAITING_FOR_RAISE
 			self:startTemporaryCourse(pullBackCourse, self.course,self.ppc:getLastPassedWaypointIx() or self.ppc:getCurrentWaypointIx())
 		else
 			-- revert to normal behavior
@@ -60,8 +60,25 @@ end
 
 --- Stop for unload/refill while driving the fieldwork course
 function CombineAIDriver:driveFieldworkUnloadOrRefill()
-	if self.fieldWorkUnloadOrRefillState == self.states.PULLING_BACK_FOR_UNLOAD then
+	if self.fieldWorkUnloadOrRefillState == self.states.WAITING_FOR_RAISE then
+		self:setSpeed(0)
+		-- wait until we stopped before raising the implements
+		if self:isStopped() then
+			self:debug('implements raised, start pulling back')
+			self:stopWork()
+			self.fieldWorkUnloadOrRefillState = self.states.PULLING_BACK_FOR_UNLOAD
+		end
+	elseif self.fieldWorkUnloadOrRefillState == self.states.PULLING_BACK_FOR_UNLOAD then
 		self:setSpeed(self.vehicle.cp.speeds.reverse)
+	elseif self.fieldWorkUnloadOrRefillState == self.states.WAITING_FOR_UNLOAD_AFTER_PULLED_BACK then
+		-- don't move when pulled back until unloading is finished
+		if self:unloadFinished() then
+			self:debug('Unloading finished, continue fieldwork')
+			self:clearInfoText(self:getFillLevelInfoText())
+			self:changeToFieldwork()
+		else
+			self:setSpeed(0)
+		end
 	else
 		UnloadableFieldworkAIDriver.driveFieldworkUnloadOrRefill(self)
 	end
@@ -71,12 +88,22 @@ function CombineAIDriver:onEndTemporaryCourse()
 	if self.fieldworkState == self.states.UNLOAD_OR_REFILL_ON_FIELD and
 		self.fieldWorkUnloadOrRefillState == self.states.PULLING_BACK_FOR_UNLOAD then
 		-- pulled back, now wait for unload
-		self.fieldWorkUnloadOrRefillState = self.states.WAITING_FOR_UNLOAD_OR_REFILL
+		self.fieldWorkUnloadOrRefillState = self.states.WAITING_FOR_UNLOAD_AFTER_PULLED_BACK
 		self:debug('Pulled back, now wait for unload')
 		self:setInfoText(self:getFillLevelInfoText())
 	else
-		UnloadableFieldworkAIDriver.onEndCourse(self)
+		UnloadableFieldworkAIDriver.onEndTemporaryCourse(self)
 	end
+end
+
+function CombineAIDriver:unloadFinished()
+	local discharging = false
+	if self.vehicle.spec_pipe then
+		discharging = self.vehicle.spec_pipe:getDischargeState() ~= Dischargeable.DISCHARGE_STATE_OFF
+	end
+	-- unload is done when fill levels are ok (not full) and not discharging anymore (either because we
+	-- are empty or the trailer is full)
+	return self:allFillLevelsOk() and not discharging
 end
 
 function CombineAIDriver:checkFruit()
