@@ -702,6 +702,15 @@ function AIDriver:onAIEnd(superFunc)
 end
 Motorized.onAIEnd = Utils.overwrittenFunction(Motorized.onAIEnd , AIDriver.onAIEnd)
 
+function AIDriver:onLeaveVehicle(superFunc)
+	if self.cp and self.cp.driver and self:getIsCourseplayDriving() then
+		self.cp.driver.debug(self.cp.driver, 'overriding onLeaveVehicle() to prevent turning off lights')
+	elseif superFunc ~= nil then
+		superFunc(self)
+	end
+end
+Lights.onLeaveVehicle = Utils.overwrittenFunction(Lights.onLeaveVehicle , AIDriver.onLeaveVehicle)
+
 function AIDriver:dischargeAtUnloadPoint(dt,unloadPointIx)
 	local tipRefpoint = 0
 	local stopForTipping = false
@@ -1147,4 +1156,3 @@ function AIDriver:getClosestPointOnFieldBoundary(x, z, fieldNum)
 		return x, z
 	end
 end
-

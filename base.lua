@@ -1211,13 +1211,13 @@ function courseplay:onUpdateTick(dt)
 		courseplay:createFieldEdgeButtons(self);
 	end;
 
-	
 	--attached or detached implement?
 	if self.cp.tooIsDirty then
 		self.cpTrafficCollisionIgnoreList = {}
 		courseplay:resetTools(self)
 	end
 
+	-- TODO this must be removed, combines should be handled by the AIDriver, not some random piece of code somewhere
 	--get the combines filling rate in l/second
 	if self.cp.isCombine then
 		if courseplay:timerIsThrough(self, 'combineFillLevel') then 

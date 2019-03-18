@@ -279,6 +279,21 @@ function Course:enrichWaypointData()
 	self.waypoints[#self.waypoints].dToNext = 0
 	self.waypoints[#self.waypoints].dToHere = self.length + self.waypoints[#self.waypoints - 1].dToNext
 	self.waypoints[#self.waypoints].turnsToHere = self.totalTurns
+	-- now add distance to next turn for the combines
+	local dToNextTurn, lNextRow = 0, 0
+	local turnFound = false
+	for i = #self.waypoints - 1, 1, -1 do
+		if turnFound then
+			dToNextTurn = dToNextTurn + self.waypoints[i].dToNext
+			self.waypoints[i].dToNextTurn = dToNextTurn
+			self.waypoints[i].lNextRow = lNextRow
+		end
+		if self:isTurnStartAtIx(i) then
+			lNextRow = dToNextTurn
+			dToNextTurn = 0
+			turnFound = true
+		end
+	end
 	courseplay.debugFormat(12, 'Course with %d waypoints created, %.1f meters, %d turns', #self.waypoints, self.length, self.totalTurns)
 end
 
@@ -600,14 +615,22 @@ function Course:append(waypoints)
 end
 
 
-function Course:getDirectionToWPInDistance(ix,vehicle,distance)
-	local lx,lz = 0,1;
+function Course:getDirectionToWPInDistance(ix, vehicle, distance)
+	local lx, lz = 0, 1
 	for i = ix, #self.waypoints do
 		if self:getDistanceBetweenVehicleAndWaypoint(vehicle, i) > distance then
 			local x,y,z = self:getWaypointPosition(i)
-			lx,lz = AIVehicleUtil.getDriveDirection(vehicle.cp.DirectionNode, x, y, z);
-			break;
+			lx,lz = AIVehicleUtil.getDriveDirection(vehicle.cp.DirectionNode, x, y, z)
+			break
 		end
 	end
-	return lx,lz;
+	return lx, lz
+end
+
+function Course:getDistanceToNextTurn(ix)
+	return self.waypoints[ix].dToNextTurn
+end
+
+function Course:getNextRowLength(ix)
+	return self.waypoints[ix].lNextRow
 end

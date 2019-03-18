@@ -45,21 +45,19 @@ function UnloadableFieldworkAIDriver:init(vehicle)
 	self.mode = courseplay.MODE_FIELDWORK
 	self.stopImplementsWhileUnloadOrRefillOnField = false
 	self.lastEmptyTimestamp = 0
-	self.litersPerMeter = 0
-	self.fillLevelAtLastWaypoint = 0
 end
-
 
 function UnloadableFieldworkAIDriver.create(vehicle)
 	if FieldworkAIDriver.hasImplementWithSpecialization(vehicle, BaleLoader) then
 		return BaleLoaderAIDriver(vehicle)
 	elseif FieldworkAIDriver.hasImplementWithSpecialization(vehicle, Baler) then
 		return BalerAIDriver(vehicle)
+	elseif SpecializationUtil.hasSpecialization(Combine, vehicle.specializations) then
+		return CombineAIDriver(vehicle)
 	else
 		return UnloadableFieldworkAIDriver(vehicle)
 	end
 end
-
 
 function UnloadableFieldworkAIDriver:drive(dt)
 	-- only reason we need this is to update the totalFillLevel for reverse.lua so it will
@@ -296,39 +294,4 @@ function UnloadableFieldworkAIDriver:getFillLevelInfoText()
 	return 'NEEDS_UNLOADING'
 end
 
-function UnloadableFieldworkAIDriver:onWaypointPassed(ix)
-	-- calculate fill rate so the combine driver knows if it can make the next row without unloading
-	if self.vehicle.spec_combine then
-		local spec = self.vehicle.spec_combine
-		local fillLevel = self.vehicle:getFillUnitFillLevel(spec.fillUnitIndex)
 
-		if ix > 1 then
-			self.litersPerMeter = (fillLevel - self.fillLevelAtLastWaypoint) / self.course:getDistanceToNextWaypoint(ix - 1)
-			-- smooth a bit
-			self.fillLevelAtLastWaypoint = (self.fillLevelAtLastWaypoint + fillLevel) / 2
-			self:debug('Fill rate is %.1f liter/meter', self.litersPerMeter)
-		end
-
-		local capacity = self.vehicle:getFillUnitCapacity(spec.fillUnitIndex)
-		-- handle beacon lights to call unload driver
-		-- copy/paste from AIDriveStrategyCombine
-		if fillLevel > (0.8 * capacity) then
-			if not self.beaconLightsActive then
-				self.vehicle:setAIMapHotspotBlinking(true)
-				self.vehicle:setBeaconLightsVisibility(true)
-				self.beaconLightsActive = true
-			end
-		else
-			if self.beaconLightsActive then
-				self.vehicle:setAIMapHotspotBlinking(false)
-				self.vehicle:setBeaconLightsVisibility(false)
-				self.beaconLightsActive = false
-			end
-		end
-	end
-	FieldworkAIDriver.onWaypointPassed(self, ix)
-end
-
-function UnloadableFieldworkAIDriver:updateLightsOnField()
-	-- do nothing here, this is handled by onWaypointPassed()
-end

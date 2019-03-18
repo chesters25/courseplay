@@ -234,7 +234,6 @@ function FieldworkAIDriver:driveFieldwork()
 		self:manageConvoy()
 		self:checkWeather()
 		self:checkFillLevels()
-		self:checkFruit()
 	elseif self.fieldworkState == self.states.UNLOAD_OR_REFILL_ON_FIELD then
 		self:driveFieldworkUnloadOrRefill()
 	elseif self.fieldworkState == self.states.TEMPORARY then
@@ -276,7 +275,7 @@ function FieldworkAIDriver:driveUnloadOrRefill()
 	return false
 end
 
---- Grain tank full during fieldwork
+--- Full during fieldwork
 function FieldworkAIDriver:changeToFieldworkUnloadOrRefill()
 	self.fieldworkState = self.states.UNLOAD_OR_REFILL_ON_FIELD
 	if self.stopImplementsWhileUnloadOrRefillOnField then
@@ -689,6 +688,7 @@ function FieldworkAIDriver:updateLights()
 end
 
 function FieldworkAIDriver:updateLightsOnField()
+	-- there are no beacons used on the field by default
 	self.vehicle:setBeaconLightsVisibility(false)
 end
 
@@ -714,8 +714,6 @@ end
 function FieldworkAIDriver:getLoweringDurationMs()
 	return self.loweringDurationMs
 end
-
-
 
 --- If we are towing an implement, move to a bigger radius in tight turns
 -- making sure that the towed implement's trajectory remains closer to the
@@ -778,7 +776,6 @@ function FieldworkAIDriver:getOffsetForTowBarLength(r, towBarLength)
 	return rTractor - r
 end
 
-
 function FieldworkAIDriver:getFillLevelInfoText()
 	return 'NEEDS_REFILLING'
 end
@@ -795,17 +792,4 @@ function FieldworkAIDriver:raiseImplements()
 		implement.object:aiImplementEndLine()
 	end
 	self.vehicle:raiseStateChange(Vehicle.STATE_CHANGE_AI_END_LINE)
-end
-
-function FieldworkAIDriver:checkFruit()
-	if self.vehicle.spec_combine and g_updateLoopIndex % 150 == 0 then
-		-- getValidityOfTurnDirections() wants to have the vehicle.aiDriveDirection, so get that here.
-		local dx,_,dz = localDirectionToWorld(self.vehicle:getAIVehicleDirectionNode(), 0, 0, 1)
-		local length = MathUtil.vector2Length(dx,dz)
-		dx = dx / length
-		dz = dz / length
-		self.vehicle.aiDriveDirection = {dx, dz}
-		self.fruitLeft, self.fruitRight = AIVehicleUtil.getValidityOfTurnDirections(self.vehicle)
-		self:debug('Fruit left: %.2f right %.2f', self.fruitLeft, self.fruitRight)
-	end
 end

@@ -2164,7 +2164,7 @@ see https://ggbm.at/RN3cawGc
 function courseplay:getAlignWpsToTargetWaypoint( vehicle, vx, vz, tx, tz, tDirection, generateStraightWaypoints )
 	vehicle.cp.turnTargets = {}
 	-- make the radius a bit bigger to make sure we can make the turn
-	local turnRadius = 1.2 * vehicle.cp.turnDiameter / 2
+	local turnRadius = 1.1 * vehicle.cp.turnDiameter / 2
 	-- target waypoint we want to reach
 	local wpNode = courseplay.createNode( "wpNode", tx, tz, tDirection )
 	-- which side of the target node are we?
@@ -2178,7 +2178,7 @@ function courseplay:getAlignWpsToTargetWaypoint( vehicle, vx, vz, tx, tz, tDirec
 	local vehicleToC1Distance = courseplay:distance( vx, vz, c1x, c1z )
 	local vehicleToC1Direction = math.atan2(c1x - vx, c1z - vz )
 	local angleBetweenTangentAndC1 = math.pi / 2 - math.asin( turnRadius / vehicleToC1Distance )
-	-- check for NaN, may happen when we are closer han turnRadius
+	-- check for NaN, may happen when we are closer than turnRadius
 	if angleBetweenTangentAndC1 ~= angleBetweenTangentAndC1 then
 		return nil
 	end
@@ -2194,7 +2194,6 @@ function courseplay:getAlignWpsToTargetWaypoint( vehicle, vx, vz, tx, tz, tDirec
 	local t1 = {}
 	t1.x, _, t1.z = localToWorld( t1Node, 0, 0, turnRadius )
 	local wp = { x = tx, z = tz }
-
 
 	-- add waypoints to the straight section from the vehicle to T1 (the start of the arc)
 	if generateStraightWaypoints then
