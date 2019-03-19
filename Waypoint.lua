@@ -214,9 +214,10 @@ Course = CpObject()
 
 --- Course constructor
 ---@param waypoints Waypoint[] table of waypoints of the course
--- @param first optional, index of first waypoint to use
--- @param last optional, index of last waypoint to use to construct of the course
-function Course:init(vehicle, waypoints, first, last)
+---@param temporary boolean optional, default false is this a temporary course?
+-- @param first number optional, index of first waypoint to use
+-- @param last number optional, index of last waypoint to use to construct of the course
+function Course:init(vehicle, waypoints, temporary, first, last)
 	-- add waypoints from current vehicle course
 	---@type Waypoint[]
 	self.waypoints = {}
@@ -231,6 +232,7 @@ function Course:init(vehicle, waypoints, first, last)
 	self.vehicle = vehicle
 	-- offset to apply to every position
 	self.offsetX, self.offsetZ = 0, 0
+	self.temporary = temporary or false
 end
 
 --- Current offset to apply. getWaypointPosition() will always return the position adjusted by the
@@ -244,6 +246,12 @@ end
 --- get number of waypoints in course
 function Course:getNumberOfWaypoints()
 	return #self.waypoints
+end
+
+--- Is this a temporary course? Can be used to differentiate between recorded and dynamically generated courses
+-- The Course() object does not use this attribute for anything
+function Course:isTemporary()
+	return self.temporary
 end
 
 -- add missing angles and world directions from one waypoint to the other

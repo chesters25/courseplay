@@ -261,8 +261,8 @@ end
 
 ---@return boolean true if unload took over the driving
 function FieldworkAIDriver:driveUnloadOrRefill()
-	if self.temporaryCourse then
-		-- use the courseplay speed limit for fields
+	if self.course:isTemporary() then
+		-- use the courseplay speed limit until we get to the actual unload corse fields (on alignment/temporary)
 		self:setSpeed(self.vehicle.cp.speeds.field)
 	else
 		-- just drive normally
@@ -512,12 +512,12 @@ function FieldworkAIDriver:setUpCourses()
 		self:debug('Course with %d waypoints set up, there seems to be an unload/refill course starting at waypoint %d',
 			#self.vehicle.Waypoints, endFieldCourseIx + 1)
 		---@type Course
-		self.fieldworkCourse = Course(self.vehicle, self.vehicle.Waypoints, 1, endFieldCourseIx)
+		self.fieldworkCourse = Course(self.vehicle, self.vehicle.Waypoints, false, 1, endFieldCourseIx)
 		---@type Course
-		self.unloadRefillCourse = Course(self.vehicle, self.vehicle.Waypoints, endFieldCourseIx + 1, #self.vehicle.Waypoints)
+		self.unloadRefillCourse = Course(self.vehicle, self.vehicle.Waypoints, false, endFieldCourseIx + 1, #self.vehicle.Waypoints)
 	else
 		self:debug('Course with %d waypoints set up, there seems to be no unload/refill course', #self.vehicle.Waypoints)
-		self.fieldworkCourse = Course(self.vehicle, self.vehicle.Waypoints, 1, #self.vehicle.Waypoints)
+		self.fieldworkCourse = Course(self.vehicle, self.vehicle.Waypoints, false, 1, #self.vehicle.Waypoints)
 	end
 	-- apply the current offset to the fieldwork part (lane+tool, where, confusingly, totalOffsetX contains the toolOffsetX)
 	self.fieldworkCourse:setOffset(self.vehicle.cp.totalOffsetX, self.vehicle.cp.toolOffsetZ)

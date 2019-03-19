@@ -21,7 +21,8 @@ CombineAIDriver = CpObject(UnloadableFieldworkAIDriver)
 
 CombineAIDriver.myStates = {
 	PULLING_BACK_FOR_UNLOAD = {},
-	WAITING_FOR_UNLOAD_AFTER_PULLED_BACK = {}
+	WAITING_FOR_UNLOAD_AFTER_PULLED_BACK = {},
+	RETURNING_FROM_PULL_BACK = {}
 }
 
 function CombineAIDriver:init(vehicle)
@@ -79,9 +80,16 @@ function CombineAIDriver:driveFieldworkUnloadOrRefill()
 	elseif self.fieldWorkUnloadOrRefillState == self.states.WAITING_FOR_UNLOAD_AFTER_PULLED_BACK then
 		-- don't move when pulled back until unloading is finished
 		if self:unloadFinished() then
-			self:debug('Unloading finished, continue fieldwork')
 			self:clearInfoText(self:getFillLevelInfoText())
-			self:changeToFieldwork()
+			local pullBackReturnCourse = self:createPullBackReturnCourse()
+			if pullBackReturnCourse then
+				self.fieldWorkUnloadOrRefillState = self.states.RETURNING_FROM_PULL_BACK
+				self:debug('Unloading finished, returning to fieldwork on return course')
+				self:startCourse(pullBackReturnCourse, 1, self.course,self.ppc:getLastPassedWaypointIx() or self.ppc:getCurrentWaypointIx())
+			else
+				self:debug('Unloading finished, returning to fieldwork directly')
+				self:changeToFieldwork()
+			end
 		else
 			self:setSpeed(0)
 		end
@@ -91,15 +99,19 @@ function CombineAIDriver:driveFieldworkUnloadOrRefill()
 end
 
 function CombineAIDriver:onNextCourse()
-	if self.fieldworkState == self.states.UNLOAD_OR_REFILL_ON_FIELD and
-		self.fieldWorkUnloadOrRefillState == self.states.PULLING_BACK_FOR_UNLOAD then
-		-- pulled back, now wait for unload
-		self.fieldWorkUnloadOrRefillState = self.states.WAITING_FOR_UNLOAD_AFTER_PULLED_BACK
-		self:debug('Pulled back, now wait for unload')
-		self:setInfoText(self:getFillLevelInfoText())
+	if self.fieldworkState == self.states.UNLOAD_OR_REFILL_ON_FIELD then
+		if self.fieldWorkUnloadOrRefillState == self.states.PULLING_BACK_FOR_UNLOAD then
+			-- pulled back, now wait for unload
+			self.fieldWorkUnloadOrRefillState = self.states.WAITING_FOR_UNLOAD_AFTER_PULLED_BACK
+			self:debug('Pulled back, now wait for unload')
+			self:setInfoText(self:getFillLevelInfoText())
+		elseif self.fieldWorkUnloadOrRefillState == self.states.RETURNING_FROM_PULL_BACK then
+			self:debug('Pull back finished, returning to fieldwork')
+			self:changeToFieldwork()
+		end
 	else
 		UnloadableFieldworkAIDriver.onNextCourse(self)
-	end
+		end
 end
 
 function CombineAIDriver:unloadFinished()
@@ -195,32 +207,22 @@ function CombineAIDriver:createPullBackCourse()
 		for _, p in ipairs(pullBackWaypoints) do
 			p.rev = true
 		end
-		return Course(self.vehicle, pullBackWaypoints)
+		return Course(self.vehicle, pullBackWaypoints, true)
 	else
 		self:debug("Pull back course would be outside of the field")
 		return nil
 	end
 end
 
-function CombineAIDriver:createReturnFromPullBackCourse()
-	-- all we need is a waypoint on our right side towards the back
+function CombineAIDriver:createPullBackReturnCourse()
 	local x1, _, z1 = localToWorld(self.vehicle.cp.DirectionNode, 0, 0, self.pullBackDistanceEnd)
-	-- both points must be on the field
-	if courseplay:isField(x1, z1) and courseplay:isField(x2, z2) then
-		local vx, _, vz = getWorldTranslation(self.vehicle.cp.DirectionNode or self.vehicle.rootNode)
-		local pullBackWaypoints = courseplay:getAlignWpsToTargetWaypoint(self.vehicle, vx, vz, x1, z1, rotation + math.pi, true)
-		if not pullBackWaypoints then
-			self:debug("Can't create alignment course for pull back")
-			return nil
-		end
-		table.insert(pullBackWaypoints, {x = x2, z = z2})
-		-- this is the backing up part, so make sure we are reversing here
-		for _, p in ipairs(pullBackWaypoints) do
-			p.rev = true
-		end
-		return Course(self.vehicle, pullBackWaypoints)
-	else
-		self:debug("Pull back course would be outside of the field")
+	local tx, _, tz = self.courseAfterPullBack:getWaypointPosition(self.ixAfterPullBack)
+	local rotation = math.rad(self.courseAfterPullBack:getWaypointAngleDeg(self.ixAfterPullBack))
+	-- don't need to check if points are on the field, we did it when we got here
+	local pullBackReturnWaypoints = courseplay:getAlignWpsToTargetWaypoint(self.vehicle, x1, z1, tx, tz, rotation, true)
+	if not pullBackReturnWaypoints then
+		self:debug("Can't create alignment course for pull back return")
 		return nil
 	end
+	return Course(self.vehicle, pullBackReturnWaypoints, true)
 end
