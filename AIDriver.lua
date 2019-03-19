@@ -135,10 +135,9 @@ function AIDriver:init(vehicle)
 	self.vehicle.cp.ppc = self.ppc
 	self.ppc:setAIDriver(self)
 	self.ppc:enable()
-	self.waypointIxAfterTemporary = 1
+	self.nextWpIx = 1
 	self.acceleration = 1
 	self.turnIsDriving = false -- code in turn.lua is driving
-	self.temporaryCourse = nil
 	self.state = self.states.STOPPED
 	self.debugTicks = 100 -- show sparse debug information only at every debugTicks update
 	-- AIDriver and its derived classes set the self.speed in various locations in
@@ -183,7 +182,6 @@ end
 -- make sure this is called from the derived start() to initialize all common stuff
 function AIDriver:beforeStart()
 	self.turnIsDriving = false
-	self.temporaryCourse = nil
 	self:deleteCollisionDetector()
 end
 
@@ -309,15 +307,13 @@ function AIDriver:driveCourse(dt)
 		self:setSpeed(self.vehicle.cp.speeds.turn)
 	end
 
-<<<<<<< HEAD
 	self:updatePathfinding()
-=======
+
 	self:stopEngineIfNotNeeded()
 
 	if self:getSpeed() > 0 and self.allowedToDrive then
 		self:startEngineIfNeeded()
 	end
->>>>>>> enginestop
 
 	if isReverseActive then
 		-- we go wherever goReverse() told us to go
@@ -374,10 +370,14 @@ function AIDriver:driveVehicleInDirection(dt, allowedToDrive, moveForwards, lx, 
 	self:driveVehicleToLocalPosition(dt, allowedToDrive, moveForwards, gx, gz, maxSpeed)
 end
 
---- Start course and set course as the current one
----@param course Course
+--- Start a course and continue with nextCourse at ix when done
+---@param tempCourse Course
+---@param nextCourse Course
 ---@param ix number
-function AIDriver:startCourse(course, ix)
+function AIDriver:startCourse(course, ix, nextCourse, nextWpIx)
+	self:debug('Starting a course, will continue at waypoint %d afterwards.', ix)
+	self.nextWpIx = nextWpIx
+	self.nextCourse = nextCourse
 	self.course = course
 	self.ppc:setCourse(self.course)
 	self.ppc:initialize(ix)
@@ -394,7 +394,7 @@ function AIDriver:startCourseWithAlignment(course, ix)
 		alignmentCourse = self:setUpAlignmentCourse(course, ix)
 	end
 	if alignmentCourse then
-		self:startTemporaryCourse(alignmentCourse, course, ix)
+		self:startCourse(alignmentCourse, 1, course, ix)
 	else
 		-- alignment course not enabled/needed/cannot be generated,
 		-- start the main course then
@@ -405,22 +405,10 @@ function AIDriver:startCourseWithAlignment(course, ix)
 	return alignmentCourse
 end
 
---- Start a temporary course and continue with nextCourse at ix when done
----@param tempCourse Course
----@param nextCourse Course
----@param ix number
-function AIDriver:startTemporaryCourse(tempCourse, nextCourse, ix)
-	self:debug('Starting a temporary course, will continue at waypoint %d afterwards.', ix)
-	self.temporaryCourse = tempCourse
-	self.waypointIxAfterTemporary = ix
-	self.courseAfterTemporary = nextCourse
-	self.course = self.temporaryCourse
-	self.ppc:setCourse(self.course)
-	self.ppc:initialize(1)
-end
 
---- Do whatever is needed after the temporary course is ended
-function AIDriver:onEndTemporaryCourse()
+
+--- Do whatever is needed after switching to the next course
+function AIDriver:onNextCourse()
 	-- nothing in general, derived classes will implement when needed
 end
 
@@ -492,22 +480,19 @@ function AIDriver:onWaypointPassed(ix)
 end
 
 function AIDriver:onLastWaypoint()
-	if self:onTemporaryCourse() then
-		self:endTemporaryCourse(self.courseAfterTemporary, self.waypointIxAfterTemporary)
+	if self.nextCourse then
+		self:continueOnNextCourse(self.nextCourse, self.nextWpIx)
 	else
 		self:debug('Last waypoint reached, end of course.')
 		self:onEndCourse()
 	end
 end
 
---- End a temporary course and then continue on nextCourse at nextWpIx
-function AIDriver:endTemporaryCourse(nextCourse, nextWpIx)
-	-- temporary course to the first waypoint ended, start the main course now
-	self.ppc:setLookaheadDistance(PurePursuitController.normalLookAheadDistance)
+--- End a course and then continue on nextCourse at nextWpIx
+function AIDriver:continueOnNextCourse(nextCourse, nextWpIx)
 	self:startCourse(nextCourse, nextWpIx)
-	self.temporaryCourse = nil
-	self:debug('Temporary course finished, starting next course at waypoint %d', nextWpIx)
-	self:onEndTemporaryCourse()
+	self:debug('Starting next course at waypoint %d', nextWpIx)
+	self:onNextCourse()
 end
 
 function AIDriver:isWaiting()
@@ -576,10 +561,6 @@ function AIDriver:isAlignmentCourseNeeded(course, ix)
 	return d > self.vehicle.cp.turnDiameter and self.vehicle.cp.alignment.enabled
 end
 
-function AIDriver:onTemporaryCourse()
-	return self.temporaryCourse ~= nil
-end
-
 function AIDriver:onTurnStart()
 	self.turnIsDriving = true
 	-- make sure turn has the current waypoint set to the the turn start wp
@@ -629,11 +610,11 @@ function AIDriver:isStopped()
 end
 
 function AIDriver:drawTemporaryCourse()
-	if not self.temporaryCourse then return end
+	if not self.nextCourse then return end
 	if not courseplay.debugChannels[self.debugChannel] then return end
-	for i = 1, self.temporaryCourse:getNumberOfWaypoints() - 1 do
-		local x, y, z = self.temporaryCourse:getWaypointPosition(i)
-		local nx, ny, nz = self.temporaryCourse:getWaypointPosition(i + 1)
+	for i = 1, self.course:getNumberOfWaypoints() - 1 do
+		local x, y, z = self.course:getWaypointPosition(i)
+		local nx, ny, nz = self.course:getWaypointPosition(i + 1)
 		cpDebug:drawPoint(x, y + 3, z, 10, 0, 0)
 		cpDebug:drawLine(x, y + 3, z, 0, 0, 100, nx, ny + 3, nz)
 	end
@@ -1129,7 +1110,7 @@ function AIDriver:onPathfindingDone(path)
 			else
 				self:debug('Could not append an alignment course to the path')
 			end
-			self:startTemporaryCourse(temporaryCourse, self.courseAfterPathfinding, self.waypointIxAfterPathfinding)
+			self:startCourse(temporaryCourse, 1, self.courseAfterPathfinding, self.waypointIxAfterPathfinding)
 			return true
 		else
 			return self:onNoPathFound('Path too short, reverting to alignment course.')
@@ -1148,7 +1129,7 @@ function AIDriver:onNoPathFound(...)
 	self:debug(...)
 	if not self:startCourseWithAlignment(self.courseAfterPathfinding, self.waypointIxAfterPathfinding) then
 		-- no alignment course needed or possible, skip to the end of temp course to continue on the normal course
-		self:endTemporaryCourse(self.courseAfterPathfinding, self.waypointIxAfterPathfinding)
+		self:continueOnNextCourse(self.courseAfterPathfinding, self.waypointIxAfterPathfinding)
 		return false
 	else
 		return true

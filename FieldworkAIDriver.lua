@@ -322,7 +322,7 @@ function FieldworkAIDriver:changeToUnloadOrRefill()
 	self.state = self.states.ON_UNLOAD_OR_REFILL_COURSE
 end
 
-function FieldworkAIDriver:onEndTemporaryCourse()
+function FieldworkAIDriver:onNextCourse()
 	if self.state == self.states.ON_FIELDWORK_COURSE then
 		self:changeToFieldwork()
 	end
@@ -427,9 +427,7 @@ function FieldworkAIDriver:startWork()
 	-- send the event first and _then_ lower otherwise it sometimes does not turn it on
 	self.vehicle:raiseAIEvent("onAIStart", "onAIImplementStart")
 	self.vehicle:requestActionEventUpdate() 
---	if not courseplay:getIsEngineReady(self.vehicle) then
---		self.vehicle:startMotor()
---	end
+	self:startEngineIfNeeded()
 	self:lowerImplements(self.vehicle)
 end
 

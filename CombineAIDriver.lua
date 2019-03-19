@@ -32,6 +32,12 @@ function CombineAIDriver:init(vehicle)
 	self.litersPerMeter = 0
 	self.fillLevelAtLastWaypoint = 0
 	self.beaconLightsActive = false
+	-- distance keep to the right when pulling back to make room for the tractor
+	self.pullBackSideOffset = self.vehicle.cp.workWidth * 1.2
+	-- should be at pullBackSideOffset to the right at pullBackDistanceStart
+	self.pullBackDistanceStart = self.vehicle.cp.turnDiameter
+	-- and back up another bit
+	self.pullBackDistanceEnd = self.pullBackDistanceStart + 5
 end
 
 function CombineAIDriver:onWaypointPassed(ix)
@@ -48,7 +54,7 @@ function CombineAIDriver:changeToFieldworkUnloadOrRefill()
 			self:debug('Pipe in fruit, pulling back to make room for unloading')
 			self.fieldworkState = self.states.UNLOAD_OR_REFILL_ON_FIELD
 			self.fieldWorkUnloadOrRefillState = self.states.WAITING_FOR_RAISE
-			self:startTemporaryCourse(pullBackCourse, self.course,self.ppc:getLastPassedWaypointIx() or self.ppc:getCurrentWaypointIx())
+			self:startCourse(pullBackCourse, 1, self.course,self.ppc:getLastPassedWaypointIx() or self.ppc:getCurrentWaypointIx())
 		else
 			-- revert to normal behavior
 			UnloadableFieldworkAIDriver.changeToFieldworkUnloadOrRefill(self)
@@ -84,7 +90,7 @@ function CombineAIDriver:driveFieldworkUnloadOrRefill()
 	end
 end
 
-function CombineAIDriver:onEndTemporaryCourse()
+function CombineAIDriver:onNextCourse()
 	if self.fieldworkState == self.states.UNLOAD_OR_REFILL_ON_FIELD and
 		self.fieldWorkUnloadOrRefillState == self.states.PULLING_BACK_FOR_UNLOAD then
 		-- pulled back, now wait for unload
@@ -92,7 +98,7 @@ function CombineAIDriver:onEndTemporaryCourse()
 		self:debug('Pulled back, now wait for unload')
 		self:setInfoText(self:getFillLevelInfoText())
 	else
-		UnloadableFieldworkAIDriver.onEndTemporaryCourse(self)
+		UnloadableFieldworkAIDriver.onNextCourse(self)
 	end
 end
 
@@ -173,9 +179,32 @@ function CombineAIDriver:createPullBackCourse()
 	local rotation = math.rad(self.course:getWaypointAngleDeg(self.ppc:getLastPassedWaypointIx() or self.ppc:getCurrentWaypointIx()))
 	local tmpNode = courseplay.createNode('temp', x, z, rotation )
 	setRotation(tmpNode, 0, rotation, 0)
-	local x1, _, z1 = localToWorld(tmpNode, -self.vehicle.cp.workWidth * 1.2, 0, -self.vehicle.cp.turnDiameter)
-	local x2, _, z2 = localToWorld(tmpNode, -self.vehicle.cp.workWidth * 1.2, 0, -self.vehicle.cp.turnDiameter - 5)
+	local x1, _, z1 = localToWorld(tmpNode, -self.pullBackSideOffset, 0, -self.pullBackDistanceStart)
+	local x2, _, z2 = localToWorld(tmpNode, -self.pullBackSideOffset, 0, -self.pullBackDistanceEnd)
 	courseplay.destroyNode(tmpNode)
+	-- both points must be on the field
+	if courseplay:isField(x1, z1) and courseplay:isField(x2, z2) then
+		local vx, _, vz = getWorldTranslation(self.vehicle.cp.DirectionNode or self.vehicle.rootNode)
+		local pullBackWaypoints = courseplay:getAlignWpsToTargetWaypoint(self.vehicle, vx, vz, x1, z1, rotation + math.pi, true)
+		if not pullBackWaypoints then
+			self:debug("Can't create alignment course for pull back")
+			return nil
+		end
+		table.insert(pullBackWaypoints, {x = x2, z = z2})
+		-- this is the backing up part, so make sure we are reversing here
+		for _, p in ipairs(pullBackWaypoints) do
+			p.rev = true
+		end
+		return Course(self.vehicle, pullBackWaypoints)
+	else
+		self:debug("Pull back course would be outside of the field")
+		return nil
+	end
+end
+
+function CombineAIDriver:createReturnFromPullBackCourse()
+	-- all we need is a waypoint on our right side towards the back
+	local x1, _, z1 = localToWorld(self.vehicle.cp.DirectionNode, 0, 0, self.pullBackDistanceEnd)
 	-- both points must be on the field
 	if courseplay:isField(x1, z1) and courseplay:isField(x2, z2) then
 		local vx, _, vz = getWorldTranslation(self.vehicle.cp.DirectionNode or self.vehicle.rootNode)
